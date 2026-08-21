@@ -1,0 +1,13 @@
+{
+  "name": "posh-shop-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off asset generation scripts — not part of the running app.",
+  "scripts": {
+    "gen-icons": "node gen-icons.js"
+  },
+  "dependencies": {
+    "sharp": "^0.33.0"
+  }
+}

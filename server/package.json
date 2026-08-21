@@ -1,0 +1,16 @@
+{
+  "name": "posh-shop-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {},
+  "_notes": "No external dependencies: this sandbox has no npm registry access, so express/cors/ws/better-sqlite3/nanoid were replaced with small hand-rolled equivalents built on Node core (node:http, node:sqlite, node:crypto). See the project report for details. A normal internet-connected environment could swap these back for the packages named in the original spec with minimal changes."
+}

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: posh-list
+    runtime: node
+    plan: free
+    buildCommand: cd client && npm install && npm run build
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22.5.0
+      - key: DB_DIR
+        value: /var/data
+    disk:
+      name: posh-list-data
+      mountPath: /var/data
+      sizeGB: 1

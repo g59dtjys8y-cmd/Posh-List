@@ -1,0 +1,89 @@
+:root {
+  /* Brand & surface */
+  --brand-yellow: #ffd400;
+  --on-brand: #14171c;
+  --on-brand-muted: #6a5200;
+  --ticket-pink: #ff2e7e;
+  --on-ticket: #ffffff;
+  --surface: #ffffff;
+  --text: #14171c;
+  --text-muted: #5c646e;
+  --hairline: #edeff2;
+  --hairline-strong: #d8dbe0;
+  --field-bg: #f7f8f9;
+  --icon-muted: #9aa1ab;
+
+  /* Aisle rails, in walking order */
+  --aisle-fruit-veg: #57c000;
+  --aisle-bakery: #ff7a00;
+  --aisle-meat-fish: #ff2e7e;
+  --aisle-chilled: #0aa3ff;
+  --aisle-frozen: #00cddc;
+  --aisle-cupboard: #8a6a3f;
+  --aisle-household: #8b3dff;
+
+  /* Person colours (seed pair; more are generated server-side in OKLCH) */
+  --person-a: #0a6cff;
+  --person-b: #ff2e7e;
+
+  /* Type */
+  --font-display: 'Big Shoulders Display', system-ui, sans-serif;
+  --font-body: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Shape */
+  --radius-card: 20px;
+  --radius-field: 10px;
+  --shelf-notch: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 62%, 11px 50%, 0 38%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+/* The signature shelf-edge ticket: pink & white, notch cut in the left
+   edge. Use once per screen for the single most important action/readout. */
+.ticket {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--ticket-pink);
+  color: var(--on-ticket);
+  border: none;
+  border-radius: 0 8px 8px 0;
+  padding: 13px 18px 13px 24px;
+  clip-path: var(--shelf-notch);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ticket:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
