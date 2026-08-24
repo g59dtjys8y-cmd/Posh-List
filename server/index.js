@@ -6,7 +6,8 @@ import { WebSocketServer } from './wsServer.js';
 import {
   createRoom,
   getRoom,
-  roomExists,
+  resolveSlug,
+  setAlias,
   renameRoom,
   setActiveLayout,
   addLayout,
@@ -15,6 +16,7 @@ import {
   addItem,
   setItemDone,
   deleteItem,
+  clearDoneItems,
   upsertPerson,
   touchPerson,
 } from './db.js';
@@ -157,17 +159,19 @@ async function handleApi(req, res, url) {
     return sendJson(res, 201, { slug: room.slug });
   }
 
-  const roomMatch = pathname.match(/^\/api\/rooms\/([a-z0-9]+)$/);
+  const roomMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)$/);
   if (roomMatch && req.method === 'GET') {
-    const slug = roomMatch[1];
-    if (!roomExists(slug)) return sendJson(res, 404, { error: 'Room not found' });
+    // Accepts either a room's real slug or a friendly alias someone set
+    // for it — both resolve to the same underlying list.
+    const slug = resolveSlug(roomMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
     return sendJson(res, 200, roomStateWithPresence(slug));
   }
 
-  const identifyMatch = pathname.match(/^\/api\/rooms\/([a-z0-9]+)\/identify$/);
+  const identifyMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/identify$/);
   if (identifyMatch && req.method === 'POST') {
-    const slug = identifyMatch[1];
-    if (!roomExists(slug)) return sendJson(res, 404, { error: 'Room not found' });
+    const slug = resolveSlug(identifyMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
     const body = await readJsonBody(req);
     if (!body.name && !body.id) return sendJson(res, 400, { error: 'name required' });
     const person = upsertPerson(slug, {
@@ -205,11 +209,16 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://localhost');
-  const slug = url.searchParams.get('room');
+  const requestedRoom = url.searchParams.get('room');
   const personId = url.searchParams.get('personId');
   const name = url.searchParams.get('name');
 
-  if (!slug || !roomExists(slug)) {
+  // The URL the browser is on may be a friendly alias rather than the
+  // room's real slug — resolve once here so everything below (and every
+  // handleMessage call for this connection) works with the one true slug.
+  const slug = requestedRoom ? resolveSlug(requestedRoom) : null;
+
+  if (!slug) {
     ws.close(4004, 'Room not found');
     return;
   }
@@ -304,10 +313,28 @@ function handleMessage(ws, slug, msg) {
       break;
     }
 
+    case 'clear_done': {
+      clearDoneItems(slug);
+      broadcastState(slug);
+      break;
+    }
+
     case 'rename_room': {
       if (typeof msg.name !== 'string' || !msg.name.trim()) return;
       renameRoom(slug, msg.name.trim().slice(0, 80));
       broadcastState(slug);
+      break;
+    }
+
+    case 'set_alias': {
+      const alias = String(msg.alias || '').trim().toLowerCase();
+      if (!alias) return;
+      const result = setAlias(slug, alias);
+      // Targeted response — only the requester needs to know whether their
+      // chosen alias was taken/invalid; everyone else just gets the normal
+      // state broadcast once it succeeds (room.alias reflects it).
+      ws.send(JSON.stringify({ type: 'alias_result', ok: result.ok, error: result.error || null, alias }));
+      if (result.ok) broadcastState(slug);
       break;
     }
 

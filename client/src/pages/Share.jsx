@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon, CopyIcon, SendIcon } from '../components/Icons.jsx';
@@ -9,15 +9,34 @@ function initials(name) {
   return (name || '?').trim().slice(0, 1).toUpperCase();
 }
 
+const ALIAS_INPUT_PATTERN = /^[a-z0-9-]*$/;
+
 export default function Share() {
-  const { room, identity } = useRoom();
+  const { room, identity, send, aliasResult, clearAliasResult } = useRoom();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [aliasInput, setAliasInput] = useState('');
+
+  useEffect(() => clearAliasResult, [clearAliasResult]);
+
+  useEffect(() => {
+    if (aliasResult?.ok) setAliasInput('');
+  }, [aliasResult]);
 
   if (!room) return null;
 
-  const url = `${window.location.origin}/r/${room.slug}`;
+  // The room's real slug never changes and always keeps working — a set
+  // alias is just a nicer link that resolves to the same list, so prefer
+  // it here once one exists.
+  const url = `${window.location.origin}/r/${room.alias || room.slug}`;
   const shortUrl = url.replace(/^https?:\/\//, '');
+
+  function saveAlias(e) {
+    e.preventDefault();
+    const alias = aliasInput.trim().toLowerCase();
+    if (!alias) return;
+    send({ type: 'set_alias', alias });
+  }
 
   async function copyLink() {
     try {
@@ -119,6 +138,78 @@ export default function Share() {
         <SendIcon />
         Send link
       </button>
+
+      <form
+        onSubmit={saveAlias}
+        style={{
+          marginTop: 22,
+          background: 'rgba(255,255,255,0.55)',
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--on-brand)' }}>
+          {room.alias ? 'Change your memorable link' : 'Give this list a memorable link'}
+        </div>
+        {room.alias && (
+          <div style={{ fontSize: 12, color: 'var(--on-brand-muted)', marginTop: 4 }}>
+            Currently: {window.location.host}/r/{room.alias}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <input
+            value={aliasInput}
+            onChange={(e) => {
+              const next = e.target.value.toLowerCase();
+              if (ALIAS_INPUT_PATTERN.test(next)) setAliasInput(next);
+              if (aliasResult) clearAliasResult();
+            }}
+            placeholder="e.g. smith-family"
+            maxLength={40}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 14,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text)',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!aliasInput.trim()}
+            style={{
+              flexShrink: 0,
+              background: 'var(--on-brand)',
+              color: 'var(--brand-yellow)',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: aliasInput.trim() ? 'pointer' : 'default',
+              opacity: aliasInput.trim() ? 1 : 0.5,
+            }}
+          >
+            Save
+          </button>
+        </div>
+        {aliasResult && !aliasResult.ok && (
+          <div style={{ fontSize: 12, color: '#B3261E', marginTop: 8, fontWeight: 600 }}>
+            {aliasResult.error === 'taken'
+              ? 'That link is already taken — try another.'
+              : 'Use lowercase letters, numbers, and hyphens only (3–40 characters).'}
+          </div>
+        )}
+        {aliasResult?.ok && (
+          <div style={{ fontSize: 12, color: 'var(--on-brand)', marginTop: 8, fontWeight: 600 }}>
+            Saved — this link is yours from now on.
+          </div>
+        )}
+      </form>
 
       <div style={{ marginTop: 24, flex: 1, overflow: 'hidden' }}>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--on-brand-muted)', marginBottom: 12 }}>

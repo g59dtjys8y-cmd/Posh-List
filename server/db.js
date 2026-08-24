@@ -63,9 +63,21 @@ db.exec(`
     join_order INTEGER NOT NULL
   );
 
+  -- A memorable, permanent alternative to the random slug a room is
+  -- created with (e.g. "smith-family" instead of "a3f9k2") — the room
+  -- keeps its original slug too, so any link already shared with that
+  -- keeps working. One alias per room; set_alias replaces it rather than
+  -- accumulating a history.
+  CREATE TABLE IF NOT EXISTS room_aliases (
+    alias TEXT PRIMARY KEY,
+    room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_layouts_room ON layouts(room_slug);
   CREATE INDEX IF NOT EXISTS idx_items_room ON items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_room_aliases_room ON room_aliases(room_slug);
 `);
 
 function makeSlug() {
@@ -141,8 +153,11 @@ export function getRoom(slug) {
       connected: false, // filled in by the caller from live socket state
     }));
 
+  const aliasRow = db.prepare('SELECT alias FROM room_aliases WHERE room_slug = ?').get(slug);
+
   return {
     slug: room.slug,
+    alias: aliasRow?.alias || null,
     name: room.name,
     activeLayoutId: room.active_layout_id,
     aisleLayouts: layouts,
@@ -153,6 +168,43 @@ export function getRoom(slug) {
 
 export function renameRoom(slug, name) {
   db.prepare('UPDATE rooms SET name = ? WHERE slug = ?').run(name, slug);
+}
+
+const ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
+
+/**
+ * A room's slug (its real, permanent identity) never changes once
+ * created — this just adds a friendlier alternative name that also
+ * resolves to it, so an existing share link never breaks.
+ */
+export function resolveSlug(input) {
+  if (typeof input !== 'string' || !input) return null;
+  if (roomExists(input)) return input;
+  const aliasRow = db.prepare('SELECT room_slug FROM room_aliases WHERE alias = ?').get(input);
+  return aliasRow?.room_slug || null;
+}
+
+/** Set (replacing any existing) alias for a room. Returns an error code on failure. */
+export function setAlias(roomSlug, alias) {
+  if (!ALIAS_PATTERN.test(alias)) return { ok: false, error: 'invalid' };
+  if (roomExists(alias) && alias !== roomSlug) return { ok: false, error: 'taken' };
+  const existingOwner = db.prepare('SELECT room_slug FROM room_aliases WHERE alias = ?').get(alias);
+  if (existingOwner && existingOwner.room_slug !== roomSlug) return { ok: false, error: 'taken' };
+
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM room_aliases WHERE room_slug = ?').run(roomSlug);
+    db.prepare('INSERT INTO room_aliases (alias, room_slug, created_at) VALUES (?, ?, ?)').run(
+      alias,
+      roomSlug,
+      Date.now()
+    );
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return { ok: true };
 }
 
 export function setActiveLayout(slug, layoutId) {
@@ -227,6 +279,11 @@ export function setItemDone(slug, itemId, done, doneBy) {
 
 export function deleteItem(slug, itemId) {
   db.prepare('DELETE FROM items WHERE id = ? AND room_slug = ?').run(itemId, slug);
+}
+
+/** Removes every ticked item — the "tidy up after the shop" action. Returns how many were removed. */
+export function clearDoneItems(slug) {
+  return db.prepare('DELETE FROM items WHERE room_slug = ? AND done = 1').run(slug).changes;
 }
 
 export function upsertPerson(slug, { id, name, color }) {

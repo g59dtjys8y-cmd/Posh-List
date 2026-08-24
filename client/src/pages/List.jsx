@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import PresenceAvatars from '../components/PresenceAvatars.jsx';
 import NavMenu from '../components/NavMenu.jsx';
@@ -15,6 +16,7 @@ import { useNavigate } from '../router.jsx';
 export default function List() {
   const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast } = useRoom();
   const navigate = useNavigate();
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   if (!room) {
     return (
@@ -32,6 +34,7 @@ export default function List() {
 
   const totalItems = room.items.length;
   const aisleCount = groups.length;
+  const doneCount = room.items.filter((i) => i.done).length;
 
   function handleAdd(raw, stepperQty) {
     const { name, qty: typedQty } = parseNameAndQty(raw);
@@ -52,6 +55,15 @@ export default function List() {
 
   function handleToggle(item) {
     send({ type: 'toggle_item', itemId: item.id, done: !item.done, doneBy: identity?.id });
+  }
+
+  function handleDelete(item) {
+    send({ type: 'delete_item', itemId: item.id });
+  }
+
+  function handleClearDone() {
+    send({ type: 'clear_done' });
+    setConfirmingClear(false);
   }
 
   return (
@@ -104,8 +116,40 @@ export default function List() {
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)' }}>
           {room.name}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-          {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, minHeight: 18 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
+          </div>
+          {doneCount > 0 &&
+            (confirmingClear ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Clear {doneCount} ticked {doneCount === 1 ? 'item' : 'items'}?
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearDone}
+                  style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClear(false)}
+                  style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(true)}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                Clear ticked ({doneCount})
+              </button>
+            ))}
         </div>
       </div>
 
@@ -150,7 +194,7 @@ export default function List() {
                 {AISLE_BY_KEY[group.aisleKey]?.label.toUpperCase()}
               </div>
               {group.items.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={handleToggle} />
+                <ItemRow key={item.id} item={item} onToggle={handleToggle} onDelete={handleDelete} />
               ))}
             </div>
           ))

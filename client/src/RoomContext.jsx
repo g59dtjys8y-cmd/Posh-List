@@ -25,6 +25,7 @@ export function RoomProvider({ slug, children }) {
   const [connected, setConnected] = useState(false);
   const [identity, setIdentity] = useState(() => getIdentity(slug));
   const [toasts, setToasts] = useState([]);
+  const [aliasResult, setAliasResult] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectAttempt = useRef(0);
@@ -89,6 +90,8 @@ export function RoomProvider({ slug, children }) {
             },
           ]);
           setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
+        } else if (msg.type === 'alias_result') {
+          setAliasResult(msg);
         }
       };
 
@@ -153,6 +156,8 @@ export function RoomProvider({ slug, children }) {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
+  const clearAliasResult = useCallback(() => setAliasResult(null), []);
+
   const activeLayout = useMemo(() => {
     if (!room) return null;
     return room.aisleLayouts.find((l) => l.id === room.activeLayoutId) || room.aisleLayouts[0];
@@ -169,8 +174,10 @@ export function RoomProvider({ slug, children }) {
       toasts,
       dismissToast,
       activeLayout,
+      aliasResult,
+      clearAliasResult,
     }),
-    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout]
+    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult]
   );
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
