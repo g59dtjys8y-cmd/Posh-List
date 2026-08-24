@@ -1,32 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '../router.jsx';
 import { createRoom, fetchRoom } from '../lib/api.js';
-import { getLastRoomSlug, clearLastRoomSlug } from '../lib/identity.js';
+import { getVisitedRooms, forgetVisitedRoom } from '../lib/identity.js';
 
 export default function Home() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   // Whoever opens the bare site (home screen icon, bare domain, an old
-  // bookmark of "/") almost certainly means "my list", not "start a brand
-  // new one" — so before showing the create-list form, check whether this
-  // device already has a list and, if it still exists, go straight there.
-  const [checkingLastRoom, setCheckingLastRoom] = useState(true);
+  // bookmark of "/") almost certainly means "my list(s)", not "start a
+  // brand new one" — so before showing the create-list form, check
+  // whether this device has been on any lists before. One list: go
+  // straight there. More than one: send them to the "Your lists" picker
+  // instead of guessing which one they meant.
+  const [checkingRooms, setCheckingRooms] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    const last = getLastRoomSlug();
-    if (!last) {
-      setCheckingLastRoom(false);
+    const rooms = getVisitedRooms();
+    if (rooms.length === 0) {
+      setCheckingRooms(false);
       return undefined;
     }
-    fetchRoom(last).then((room) => {
+    if (rooms.length > 1) {
+      navigate('/lists', { replace: true });
+      return undefined;
+    }
+    const only = rooms[0].slug;
+    fetchRoom(only).then((room) => {
       if (cancelled) return;
       if (room) {
-        navigate(`/r/${last}`, { replace: true });
+        navigate(`/r/${only}`, { replace: true });
       } else {
-        clearLastRoomSlug();
-        setCheckingLastRoom(false);
+        forgetVisitedRoom(only);
+        setCheckingRooms(false);
       }
     });
     return () => {
@@ -45,7 +52,7 @@ export default function Home() {
     }
   }
 
-  if (checkingLastRoom) {
+  if (checkingRooms) {
     return (
       <div className="app-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Opening your list…</div>

@@ -27,32 +27,42 @@ export function saveIdentity(slug, identity) {
   }
 }
 
-// Global (not per-room) — the most recent room this device visited, so
-// opening the site fresh (home screen icon, typing the bare domain, a
-// browser bookmark of "/") lands back on that list instead of the
-// "start a new list" form and silently spinning up a brand new room that
-// nobody else is on.
-const LAST_ROOM_KEY = 'posh-shop:last-room';
+// Global (not per-room) — every room this device has opened, so opening the
+// site fresh (home screen icon, bare domain, an old bookmark of "/") can
+// return to a list instead of the "start a new list" form silently
+// spinning up a brand new room nobody else is on, and so a menu can show
+// "your lists" instead of losing track of every list but the very last one.
+const ROOMS_KEY = 'posh-shop:rooms';
+const MAX_REMEMBERED_ROOMS = 50;
 
-export function getLastRoomSlug() {
+/** Every room this device has opened, most recently visited first. */
+export function getVisitedRooms() {
   try {
-    return localStorage.getItem(LAST_ROOM_KEY) || null;
+    const raw = localStorage.getItem(ROOMS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((r) => r && typeof r.slug === 'string');
   } catch {
-    return null;
+    return [];
   }
 }
 
-export function setLastRoomSlug(slug) {
+/** Record (or refresh) this device having opened `slug`, named `name`. */
+export function rememberVisitedRoom(slug, name) {
   try {
-    localStorage.setItem(LAST_ROOM_KEY, slug);
+    const rooms = getVisitedRooms().filter((r) => r.slug !== slug);
+    rooms.unshift({ slug, name: name || 'Shopping list', lastVisitedAt: Date.now() });
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms.slice(0, MAX_REMEMBERED_ROOMS)));
   } catch {
     // localStorage unavailable — just won't be remembered next time.
   }
 }
 
-export function clearLastRoomSlug() {
+export function forgetVisitedRoom(slug) {
   try {
-    localStorage.removeItem(LAST_ROOM_KEY);
+    const rooms = getVisitedRooms().filter((r) => r.slug !== slug);
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms));
   } catch {
     // no-op
   }

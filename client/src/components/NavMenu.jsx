@@ -20,6 +20,7 @@ export default function NavMenu({ slug }) {
     { label: 'Share the list', to: `/r/${slug}/share` },
     { label: 'In the shop', to: `/r/${slug}/shop` },
     { label: 'Layouts', to: `/r/${slug}/layouts` },
+    { label: 'Your lists', to: '/lists' },
   ];
 
   return (

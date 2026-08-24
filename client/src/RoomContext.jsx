@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { fetchRoom } from './lib/api.js';
-import { getIdentity, saveIdentity, newPersonId, setLastRoomSlug } from './lib/identity.js';
+import { getIdentity, saveIdentity, newPersonId, rememberVisitedRoom } from './lib/identity.js';
 
 const RoomContext = createContext(null);
 
@@ -40,10 +40,11 @@ export function RoomProvider({ slug, children }) {
     fetchRoom(slug).then((r) => {
       if (cancelled) return;
       setRoom(r);
-      // Remember this as "the" list so opening the app fresh (home screen
-      // icon, bare domain, an old browser bookmark) comes straight back
-      // here instead of spinning up a new, empty list.
-      if (r) setLastRoomSlug(slug);
+      // Remember this as one of "your lists" so opening the app fresh
+      // (home screen icon, bare domain, an old browser bookmark) can
+      // return to it, and so the "My lists" menu can show every list this
+      // device has been part of, not just the very last one.
+      if (r) rememberVisitedRoom(slug, r.name);
     });
     return () => {
       cancelled = true;
