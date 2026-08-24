@@ -1,11 +1,38 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from '../router.jsx';
-import { createRoom } from '../lib/api.js';
+import { createRoom, fetchRoom } from '../lib/api.js';
+import { getLastRoomSlug, clearLastRoomSlug } from '../lib/identity.js';
 
 export default function Home() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  // Whoever opens the bare site (home screen icon, bare domain, an old
+  // bookmark of "/") almost certainly means "my list", not "start a brand
+  // new one" — so before showing the create-list form, check whether this
+  // device already has a list and, if it still exists, go straight there.
+  const [checkingLastRoom, setCheckingLastRoom] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const last = getLastRoomSlug();
+    if (!last) {
+      setCheckingLastRoom(false);
+      return undefined;
+    }
+    fetchRoom(last).then((room) => {
+      if (cancelled) return;
+      if (room) {
+        navigate(`/r/${last}`, { replace: true });
+      } else {
+        clearLastRoomSlug();
+        setCheckingLastRoom(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   async function start(e) {
     e.preventDefault();
@@ -16,6 +43,14 @@ export default function Home() {
     } catch {
       setBusy(false);
     }
+  }
+
+  if (checkingLastRoom) {
+    return (
+      <div className="app-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Opening your list…</div>
+      </div>
+    );
   }
 
   return (

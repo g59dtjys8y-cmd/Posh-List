@@ -27,6 +27,37 @@ export function saveIdentity(slug, identity) {
   }
 }
 
+// Global (not per-room) — the most recent room this device visited, so
+// opening the site fresh (home screen icon, typing the bare domain, a
+// browser bookmark of "/") lands back on that list instead of the
+// "start a new list" form and silently spinning up a brand new room that
+// nobody else is on.
+const LAST_ROOM_KEY = 'posh-shop:last-room';
+
+export function getLastRoomSlug() {
+  try {
+    return localStorage.getItem(LAST_ROOM_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setLastRoomSlug(slug) {
+  try {
+    localStorage.setItem(LAST_ROOM_KEY, slug);
+  } catch {
+    // localStorage unavailable — just won't be remembered next time.
+  }
+}
+
+export function clearLastRoomSlug() {
+  try {
+    localStorage.removeItem(LAST_ROOM_KEY);
+  } catch {
+    // no-op
+  }
+}
+
 export function newPersonId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `p_${Date.now()}_${Math.random().toString(36).slice(2)}`;

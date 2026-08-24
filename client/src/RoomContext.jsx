@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { fetchRoom } from './lib/api.js';
-import { getIdentity, saveIdentity, newPersonId } from './lib/identity.js';
+import { getIdentity, saveIdentity, newPersonId, setLastRoomSlug } from './lib/identity.js';
 
 const RoomContext = createContext(null);
 
@@ -31,7 +31,12 @@ export function RoomProvider({ slug, children }) {
     let cancelled = false;
     setRoom(null);
     fetchRoom(slug).then((r) => {
-      if (!cancelled) setRoom(r);
+      if (cancelled) return;
+      setRoom(r);
+      // Remember this as "the" list so opening the app fresh (home screen
+      // icon, bare domain, an old browser bookmark) comes straight back
+      // here instead of spinning up a new, empty list.
+      if (r) setLastRoomSlug(slug);
     });
     return () => {
       cancelled = true;
