@@ -4,6 +4,12 @@ import { getIdentity, saveIdentity, newPersonId, setLastRoomSlug } from './lib/i
 
 const RoomContext = createContext(null);
 
+// Send a heartbeat well under any reverse-proxy idle-connection timeout
+// (Render's included) so a quiet room's socket doesn't get silently
+// dropped between actions. The server already answers {type:'ping'} with
+// {type:'pong'} — this is what actually calls it.
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
 function wsUrlFor(slug, identity) {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const params = new URLSearchParams({ room: slug });
@@ -22,6 +28,7 @@ export function RoomProvider({ slug, children }) {
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectAttempt = useRef(0);
+  const heartbeatTimer = useRef(null);
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
@@ -54,6 +61,10 @@ export function RoomProvider({ slug, children }) {
       ws.onopen = () => {
         reconnectAttempt.current = 0;
         setConnected(true);
+        clearInterval(heartbeatTimer.current);
+        heartbeatTimer.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+        }, HEARTBEAT_INTERVAL_MS);
       };
 
       ws.onmessage = (event) => {
@@ -81,6 +92,7 @@ export function RoomProvider({ slug, children }) {
       };
 
       ws.onclose = () => {
+        clearInterval(heartbeatTimer.current);
         setConnected(false);
         if (cancelled) return;
         const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 8000);
@@ -97,6 +109,7 @@ export function RoomProvider({ slug, children }) {
     return () => {
       cancelled = true;
       clearTimeout(reconnectTimer.current);
+      clearInterval(heartbeatTimer.current);
       wsRef.current?.close();
     };
   }, [slug]);

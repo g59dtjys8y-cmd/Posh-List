@@ -12,7 +12,7 @@ import { categorize, parseNameAndQty } from '../lib/categorize.js';
 import { useNavigate } from '../router.jsx';
 
 export default function List() {
-  const { slug, room, identity, setName, send, activeLayout, toasts, dismissToast } = useRoom();
+  const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast } = useRoom();
   const navigate = useNavigate();
 
   if (!room) {
@@ -107,6 +107,22 @@ export default function List() {
           {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
         </div>
       </div>
+
+      {!connected && (
+        <div
+          style={{
+            padding: '8px 20px',
+            fontSize: 12,
+            fontWeight: 600,
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            background: 'var(--field-bg)',
+            borderBottom: '1px solid var(--hairline)',
+          }}
+        >
+          Reconnecting… changes will send once you're back online
+        </div>
+      )}
 
       <OfferBanner slug={slug} />
 

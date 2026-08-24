@@ -5,7 +5,7 @@ import Toast from '../components/Toast.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
 
 export default function InShop() {
-  const { slug, room, identity, send, toasts, dismissToast, activeLayout } = useRoom();
+  const { slug, room, connected, identity, send, toasts, dismissToast, activeLayout } = useRoom();
   const navigate = useNavigate();
 
   if (!room) return null;
@@ -65,6 +65,22 @@ export default function InShop() {
           <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--ticket-pink)', borderRadius: 3, transition: 'width 200ms ease' }} />
         </div>
       </div>
+
+      {!connected && (
+        <div
+          style={{
+            padding: '8px 20px',
+            fontSize: 12,
+            fontWeight: 600,
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            background: 'var(--field-bg)',
+            borderBottom: '1px solid var(--hairline)',
+          }}
+        >
+          Reconnecting… changes will send once you're back online
+        </div>
+      )}
 
       {toasts.map((t) => (
         <Toast key={t.id} toast={t} onClose={() => dismissToast(t.id)} />
