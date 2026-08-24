@@ -2,7 +2,7 @@ services:
   - type: web
     name: posh-list
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: cd client && npm install && npm run build
     startCommand: node server/index.js
     envVars:
