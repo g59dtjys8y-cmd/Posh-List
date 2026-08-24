@@ -6,6 +6,7 @@ import OfferBanner from '../components/OfferBanner.jsx';
 import AddBar from '../components/AddBar.jsx';
 import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
+import BadgePrompt from '../components/BadgePrompt.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
 import { presenceText } from '../lib/presence.js';
 import { categorize, parseNameAndQty } from '../lib/categorize.js';
@@ -107,6 +108,8 @@ export default function List() {
           {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
         </div>
       </div>
+
+      <BadgePrompt />
 
       {!connected && (
         <div
