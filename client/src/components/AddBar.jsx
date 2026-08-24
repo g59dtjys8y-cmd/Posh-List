@@ -69,12 +69,27 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
     }
   }
 
-  function submit(e) {
-    e.preventDefault();
+  function addCurrentValue() {
     if (!value.trim()) return;
     onAdd(value.trim(), qty);
     setValue('');
     setQty(1);
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    addCurrentValue();
+  }
+
+  // Belt and braces alongside the form's onSubmit: with no type="submit"
+  // button in this form (the mic and stepper buttons are all type="button"
+  // so they don't accidentally trigger a submit), some mobile keyboards'
+  // Go/Done/tick key are inconsistent about firing native implicit form
+  // submission. Handling Enter directly on the field works everywhere.
+  function onInputKeyDown(e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    addCurrentValue();
   }
 
   function stepQty(delta) {
@@ -109,7 +124,9 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onKeyDown={onInputKeyDown}
           placeholder="Add to the list…"
+          enterKeyHint="done"
           maxLength={120}
           style={{
             flex: 1,
