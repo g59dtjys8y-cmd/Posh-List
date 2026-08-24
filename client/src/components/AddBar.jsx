@@ -10,8 +10,31 @@ const SpeechRecognitionCtor =
  * doesn't, it renders disabled with an honest title rather than pretending
  * to transcribe.
  */
+const MAX_QTY = 99;
+
+function stepperButtonStyle(variant, disabled) {
+  return {
+    background: 'none',
+    border: 'none',
+    borderRadius: '50%',
+    width: 24,
+    height: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 16,
+    lineHeight: 1,
+    fontWeight: 600,
+    color: variant === 'ticket' ? '#fff' : 'var(--text)',
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.35 : 1,
+    flexShrink: 0,
+  };
+}
+
 export default function AddBar({ onAdd, variant = 'ticket' }) {
   const [value, setValue] = useState('');
+  const [qty, setQty] = useState(1);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
 
@@ -49,8 +72,13 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
   function submit(e) {
     e.preventDefault();
     if (!value.trim()) return;
-    onAdd(value.trim());
+    onAdd(value.trim(), qty);
     setValue('');
+    setQty(1);
+  }
+
+  function stepQty(delta) {
+    setQty((q) => Math.min(MAX_QTY, Math.max(1, q + delta)));
   }
 
   const ticketStyle = {
@@ -94,6 +122,50 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
             color: variant === 'ticket' ? '#fff' : 'var(--text)',
           }}
         />
+        {value.trim() && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              flexShrink: 0,
+              background: variant === 'ticket' ? 'rgba(255,255,255,0.18)' : 'var(--field-bg)',
+              borderRadius: 16,
+              padding: 2,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => stepQty(-1)}
+              disabled={qty <= 1}
+              aria-label="Decrease quantity"
+              style={stepperButtonStyle(variant, qty <= 1)}
+            >
+              −
+            </button>
+            <span
+              style={{
+                minWidth: 20,
+                textAlign: 'center',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: variant === 'ticket' ? '#fff' : 'var(--text)',
+              }}
+            >
+              {qty}
+            </span>
+            <button
+              type="button"
+              onClick={() => stepQty(1)}
+              disabled={qty >= MAX_QTY}
+              aria-label="Increase quantity"
+              style={stepperButtonStyle(variant, qty >= MAX_QTY)}
+            >
+              +
+            </button>
+          </div>
+        )}
         <button
           type="button"
           onClick={toggleMic}
