@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import ItemRow from '../components/ItemRow.jsx';
@@ -7,6 +8,16 @@ import { AISLE_BY_KEY } from '../lib/aisles.js';
 export default function InShop() {
   const { slug, room, connected, identity, send, toasts, dismissToast, activeLayout } = useRoom();
   const navigate = useNavigate();
+
+  // Tell the room someone's physically at the shop — housemates with the
+  // app open get a one-time "anything to add?" nudge. Re-sent on reconnect
+  // (the server drops the flag when the socket closes); the server also
+  // debounces the nudge so bouncing in and out doesn't re-fire it.
+  useEffect(() => {
+    if (!connected) return undefined;
+    send({ type: 'enter_shop' });
+    return () => send({ type: 'leave_shop' });
+  }, [connected, send]);
 
   if (!room) return null;
 

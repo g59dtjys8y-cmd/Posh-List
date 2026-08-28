@@ -27,6 +27,7 @@ export function RoomProvider({ slug, children }) {
   const [toasts, setToasts] = useState([]);
   const [aliasResult, setAliasResult] = useState(null);
   const [knownItems, setKnownItems] = useState(null);
+  const [shoppingNotice, setShoppingNotice] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectAttempt = useRef(0);
@@ -79,6 +80,14 @@ export function RoomProvider({ slug, children }) {
         }
         if (msg.type === 'state') {
           setRoom(msg.room);
+          // Drop the "someone's shopping" nudge once that person has left
+          // the shop screen (or nobody's shopping any more).
+          setShoppingNotice((n) =>
+            n && (msg.room.shopping || []).includes(n.personId) ? n : null
+          );
+        } else if (msg.type === 'shopping_started') {
+          if (msg.personId === identityRef.current?.id) return;
+          setShoppingNotice({ personId: msg.personId, name: msg.name || 'Someone' });
         } else if (msg.type === 'item_added') {
           if (msg.fromPersonId && msg.fromPersonId === identityRef.current?.id) return;
           const id = `${Date.now()}-${Math.random()}`;
@@ -165,6 +174,8 @@ export function RoomProvider({ slug, children }) {
     send({ type: 'request_known_items' });
   }, [send]);
 
+  const dismissShoppingNotice = useCallback(() => setShoppingNotice(null), []);
+
   const activeLayout = useMemo(() => {
     if (!room) return null;
     return room.aisleLayouts.find((l) => l.id === room.activeLayoutId) || room.aisleLayouts[0];
@@ -185,8 +196,10 @@ export function RoomProvider({ slug, children }) {
       clearAliasResult,
       knownItems,
       requestKnownItems,
+      shoppingNotice,
+      dismissShoppingNotice,
     }),
-    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult, knownItems, requestKnownItems]
+    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult, knownItems, requestKnownItems, shoppingNotice, dismissShoppingNotice]
   );
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;

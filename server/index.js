@@ -34,6 +34,10 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'client', 'public');
 // ---------------------------------------------------------------------------
 const roomSockets = new Map(); // slug -> Set<WSConnection>
 const roomPersonCounts = new Map(); // slug -> Map<personId, openSocketCount>
+const roomShopping = new Map(); // slug -> Map<personId, openShopScreenCount>
+const lastShoppingBroadcast = new Map(); // slug -> ts (debounces the "X is shopping" nudge)
+
+const SHOPPING_NUDGE_DEBOUNCE_MS = 5 * 60_000;
 
 function socketsFor(slug) {
   if (!roomSockets.has(slug)) roomSockets.set(slug, new Set());
@@ -46,11 +50,19 @@ function personCountsFor(slug) {
 function connectedPersonIds(slug) {
   return new Set([...personCountsFor(slug).entries()].filter(([, n]) => n > 0).map(([id]) => id));
 }
+function shoppingFor(slug) {
+  if (!roomShopping.has(slug)) roomShopping.set(slug, new Map());
+  return roomShopping.get(slug);
+}
+function shoppingPersonIds(slug) {
+  return [...shoppingFor(slug).entries()].filter(([, n]) => n > 0).map(([id]) => id);
+}
 function roomStateWithPresence(slug) {
   const room = getRoom(slug);
   if (!room) return null;
   const connected = connectedPersonIds(slug);
   room.people = room.people.map((p) => ({ ...p, connected: connected.has(p.id) }));
+  room.shopping = shoppingPersonIds(slug);
   return room;
 }
 function broadcast(slug, message) {
@@ -236,9 +248,20 @@ wss.on('connection', (ws, req) => {
   socketsFor(slug).add(ws);
 
   if (personId) {
-    upsertPerson(slug, { id: personId, name: name || undefined });
-    const counts = personCountsFor(slug);
-    counts.set(personId, (counts.get(personId) || 0) + 1);
+    try {
+      upsertPerson(slug, { id: personId, name: name || undefined });
+    } catch (err) {
+      // A stale client could hand us a personId that already belongs to a
+      // different room. Don't let that take the whole server down — just
+      // treat this socket as not-yet-identified; the client re-identifies
+      // over the 'identify' message once it has a name for this room.
+      console.error('connection upsertPerson failed', err);
+      ws.personId = null;
+    }
+    if (ws.personId) {
+      const counts = personCountsFor(slug);
+      counts.set(personId, (counts.get(personId) || 0) + 1);
+    }
   }
 
   ws.send(JSON.stringify({ type: 'state', room: roomStateWithPresence(slug) }));
@@ -266,6 +289,10 @@ wss.on('connection', (ws, req) => {
       const counts = personCountsFor(slug);
       const n = (counts.get(ws.personId) || 1) - 1;
       counts.set(ws.personId, Math.max(0, n));
+      if (ws.shopScreens) {
+        const m = shoppingFor(slug);
+        m.set(ws.personId, Math.max(0, (m.get(ws.personId) || 0) - ws.shopScreens));
+      }
       touchPerson(slug, ws.personId);
     }
     broadcastState(slug);
@@ -355,6 +382,39 @@ function handleMessage(ws, slug, msg) {
 
     case 'request_known_items': {
       ws.send(JSON.stringify({ type: 'known_items', items: getKnownItems(slug) }));
+      break;
+    }
+
+    case 'enter_shop': {
+      if (!ws.personId) return;
+      const m = shoppingFor(slug);
+      const noneShoppingBefore = [...m.values()].every((n) => !n);
+      m.set(ws.personId, (m.get(ws.personId) || 0) + 1);
+      ws.shopScreens = (ws.shopScreens || 0) + 1;
+      const now = Date.now();
+      if (
+        noneShoppingBefore &&
+        now - (lastShoppingBroadcast.get(slug) || 0) > SHOPPING_NUDGE_DEBOUNCE_MS
+      ) {
+        lastShoppingBroadcast.set(slug, now);
+        const room = getRoom(slug);
+        const person = room?.people.find((p) => p.id === ws.personId);
+        broadcast(slug, {
+          type: 'shopping_started',
+          personId: ws.personId,
+          name: person?.name || 'Someone',
+        });
+      }
+      broadcastState(slug);
+      break;
+    }
+
+    case 'leave_shop': {
+      if (!ws.personId) return;
+      const m = shoppingFor(slug);
+      m.set(ws.personId, Math.max(0, (m.get(ws.personId) || 0) - 1));
+      ws.shopScreens = Math.max(0, (ws.shopScreens || 0) - 1);
+      broadcastState(slug);
       break;
     }
 

@@ -10,3 +10,17 @@ export function presenceText(people, myId) {
   if (others.length === 2) return `${others[0]} and ${others[1]} are on the list`;
   return `${others[0]}, ${others[1]} and ${others.length - 2} more are on the list`;
 }
+
+/**
+ * Stronger than presenceText: what to show when someone (not me) is
+ * physically at the shop right now. `shoppingIds` is room.shopping.
+ */
+export function livePresenceText(people, myId, shoppingIds = []) {
+  const shoppers = people
+    .filter((p) => p.id !== myId && shoppingIds.includes(p.id))
+    .map((p) => p.name);
+  if (shoppers.length === 1) return `${possessive(shoppers[0])} shopping now`;
+  if (shoppers.length === 2) return `${shoppers[0]} and ${shoppers[1]} are shopping now`;
+  if (shoppers.length > 2) return `${shoppers.length} people shopping now`;
+  return presenceText(people, myId);
+}

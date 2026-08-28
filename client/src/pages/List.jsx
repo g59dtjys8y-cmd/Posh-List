@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import PresenceAvatars from '../components/PresenceAvatars.jsx';
 import NavMenu from '../components/NavMenu.jsx';
@@ -9,7 +9,7 @@ import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
 import BadgePrompt from '../components/BadgePrompt.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
-import { presenceText } from '../lib/presence.js';
+import { livePresenceText } from '../lib/presence.js';
 import { categorize, parseNameAndQty } from '../lib/categorize.js';
 import { createRoom } from '../lib/api.js';
 import { didCreateRoom } from '../lib/identity.js';
@@ -18,8 +18,9 @@ import { useNavigate } from '../router.jsx';
 const SEED_SEEN_KEY = (slug) => `posh-list:seed-prompt-seen:${slug}`;
 
 export default function List() {
-  const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast } = useRoom();
+  const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast, shoppingNotice, dismissShoppingNotice } = useRoom();
   const navigate = useNavigate();
+  const addBarRef = useRef(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [seedDismissed, setSeedDismissed] = useState(() => {
     try {
@@ -158,7 +159,7 @@ export default function List() {
             <PresenceAvatars people={room.people} />
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--aisle-fruit-veg)', flexShrink: 0 }} />
             <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--on-brand)' }}>
-              {presenceText(room.people, identity.id)}
+              {livePresenceText(room.people, identity.id, room.shopping)}
             </span>
           </button>
         ) : (
@@ -226,6 +227,42 @@ export default function List() {
       )}
 
       <OfferBanner slug={slug} />
+
+      {shoppingNotice && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '11px 20px',
+            background: 'var(--brand-yellow)',
+            borderBottom: '1px solid rgba(0,0,0,0.08)',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--on-brand)' }}>
+            {shoppingNotice.name}&rsquo;s at the shop — anything to add?
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              addBarRef.current?.focus();
+              dismissShoppingNotice();
+            }}
+            style={{ background: 'var(--on-brand)', color: 'var(--brand-yellow)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+          >
+            Add something
+          </button>
+          <button
+            type="button"
+            onClick={dismissShoppingNotice}
+            aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', padding: '4px 2px', fontSize: 15, color: 'var(--on-brand)', cursor: 'pointer', flexShrink: 0 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {totalItems > 0 && usualsToAdd > 0 && (
         <div style={{ padding: '10px 20px 2px', flexShrink: 0 }}>
@@ -321,7 +358,7 @@ export default function List() {
         </div>
       )}
 
-      <AddBar onAdd={handleAdd} variant="ticket" />
+      <AddBar ref={addBarRef} onAdd={handleAdd} variant="ticket" />
     </div>
   );
 }

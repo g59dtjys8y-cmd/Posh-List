@@ -32,7 +32,14 @@ export default function App() {
 
     if (!params.slug) return route.render(params);
 
-    return <RoomProvider slug={params.slug}>{route.render(params)}</RoomProvider>;
+    // key by slug so switching rooms client-side (e.g. "start your own
+    // list", or the "Your lists" picker) fully remounts the provider —
+    // otherwise per-room identity state leaks from one room into the next.
+    return (
+      <RoomProvider key={params.slug} slug={params.slug}>
+        {route.render(params)}
+      </RoomProvider>
+    );
   }
 
   return (

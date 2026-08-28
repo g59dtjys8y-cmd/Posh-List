@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { MicIcon } from './Icons.jsx';
 
 const SpeechRecognitionCtor =
@@ -32,11 +32,19 @@ function stepperButtonStyle(variant, disabled) {
   };
 }
 
-export default function AddBar({ onAdd, variant = 'ticket' }) {
+const AddBar = forwardRef(function AddBar({ onAdd, variant = 'ticket' }, ref) {
   const [value, setValue] = useState('');
   const [qty, setQty] = useState(1);
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    focus() {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ block: 'nearest' });
+    },
+  }));
 
   useEffect(() => {
     if (!SpeechRecognitionCtor) return undefined;
@@ -122,6 +130,7 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
     >
       <div style={variant === 'ticket' ? ticketStyle : plainStyle}>
         <input
+          ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onInputKeyDown}
@@ -213,4 +222,6 @@ export default function AddBar({ onAdd, variant = 'ticket' }) {
       </div>
     </form>
   );
-}
+});
+
+export default AddBar;
