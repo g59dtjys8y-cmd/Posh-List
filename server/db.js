@@ -86,11 +86,32 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  -- Every distinct item name a room has ever added, with a running count.
+  -- Once something has been added enough times it becomes a "usual" and can
+  -- be re-added to next week's list in one tap. The aisle is learned once so
+  -- an odd item only ever needs categorising by hand a single time.
+  CREATE TABLE IF NOT EXISTS known_items (
+    room_slug        TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+    name_key         TEXT NOT NULL,            -- lower(trim(name))
+    display_name     TEXT NOT NULL,            -- most-recent casing
+    aisle_key        TEXT NOT NULL,
+    times_added      INTEGER NOT NULL DEFAULT 1,
+    last_added_at    INTEGER NOT NULL,
+    is_regular       INTEGER NOT NULL DEFAULT 0,   -- auto: set once times_added >= threshold
+    regular_override INTEGER,                       -- NULL = auto, 1 = force on, 0 = force off
+    PRIMARY KEY (room_slug, name_key)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_layouts_room ON layouts(room_slug);
   CREATE INDEX IF NOT EXISTS idx_items_room ON items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug);
   CREATE INDEX IF NOT EXISTS idx_room_aliases_room ON room_aliases(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
 `);
+
+// How many times an item has to be added before it's treated as a "usual".
+// Tune after a month of real use.
+const REGULAR_THRESHOLD = 4;
 
 function makeSlug() {
   // Lowercase alnum, 6 chars — short enough to say out loud, long enough
@@ -167,6 +188,11 @@ export function getRoom(slug) {
 
   const aliasRow = db.prepare('SELECT alias FROM room_aliases WHERE room_slug = ?').get(slug);
 
+  const liveNames = new Set(
+    items.filter((i) => !i.done).map((i) => i.name.toLowerCase().trim())
+  );
+  const regulars = getRegulars(slug).map((r) => ({ ...r, onList: liveNames.has(r.nameKey) }));
+
   return {
     slug: room.slug,
     alias: aliasRow?.alias || null,
@@ -175,6 +201,7 @@ export function getRoom(slug) {
     aisleLayouts: layouts,
     items,
     people,
+    regulars,
   };
 }
 
@@ -277,7 +304,101 @@ export function addItem(slug, { name, qty, aisleKey, addedBy, addedColor }) {
     `INSERT INTO items (id, room_slug, name, qty, aisle_key, added_by, added_color, done, done_by, position, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`
   ).run(id, slug, name, qty || 1, aisleKey, addedBy || null, addedColor || null, maxPos + 1, now);
+  learnKnownItem(slug, name, aisleKey, now);
   return id;
+}
+
+/**
+ * Record that `name` was added to this room's list — bumping its count and,
+ * once it crosses the threshold, marking it a "usual". The aisle is written
+ * on first sight and then left alone unless it was only ever the `cupboard`
+ * catch-all, so a hand-categorised item stays where it was put.
+ * `clear_done` / `delete_item` deliberately do NOT call this — buying an
+ * item and then tidying it off the list is the normal flow, not a signal
+ * that it isn't a usual.
+ */
+function learnKnownItem(slug, name, aisleKey, now) {
+  const key = name.toLowerCase().trim();
+  if (!key) return;
+  db.prepare(
+    `INSERT INTO known_items (room_slug, name_key, display_name, aisle_key, times_added, last_added_at)
+     VALUES (?, ?, ?, ?, 1, ?)
+     ON CONFLICT(room_slug, name_key) DO UPDATE SET
+       times_added   = times_added + 1,
+       last_added_at = excluded.last_added_at,
+       display_name  = excluded.display_name,
+       aisle_key     = CASE WHEN known_items.aisle_key = 'cupboard'
+                            THEN excluded.aisle_key ELSE known_items.aisle_key END,
+       is_regular    = CASE WHEN times_added + 1 >= ${REGULAR_THRESHOLD} THEN 1 ELSE is_regular END`
+  ).run(slug, key, name, aisleKey, now);
+}
+
+/** All "usuals" for a room — most-added first. `onList` is filled by getRoom. */
+export function getRegulars(slug) {
+  return db
+    .prepare(
+      `SELECT name_key, display_name, aisle_key, times_added
+         FROM known_items
+        WHERE room_slug = ? AND COALESCE(regular_override, is_regular) = 1
+        ORDER BY times_added DESC, last_added_at DESC`
+    )
+    .all(slug)
+    .map((r) => ({
+      nameKey: r.name_key,
+      name: r.display_name,
+      aisleKey: r.aisle_key,
+      timesAdded: r.times_added,
+    }));
+}
+
+/** Every item name this room has ever added — for the "Your usuals" manage screen. */
+export function getKnownItems(slug) {
+  return db
+    .prepare(
+      `SELECT name_key, display_name, aisle_key, times_added, is_regular, regular_override
+         FROM known_items
+        WHERE room_slug = ?
+        ORDER BY times_added DESC, last_added_at DESC`
+    )
+    .all(slug)
+    .map((r) => ({
+      nameKey: r.name_key,
+      name: r.display_name,
+      aisleKey: r.aisle_key,
+      timesAdded: r.times_added,
+      isRegular: !!(r.regular_override == null ? r.is_regular : r.regular_override),
+      overridden: r.regular_override != null,
+    }));
+}
+
+/**
+ * Add every usual that isn't already sitting un-ticked on the list.
+ * Returns the display names actually added.
+ */
+export function addRegularsToList(slug, { addedBy, addedColor } = {}) {
+  const live = new Set(
+    db
+      .prepare('SELECT name FROM items WHERE room_slug = ? AND done = 0')
+      .all(slug)
+      .map((r) => r.name.toLowerCase().trim())
+  );
+  const added = [];
+  for (const regular of getRegulars(slug)) {
+    if (live.has(regular.nameKey)) continue;
+    addItem(slug, { name: regular.name, qty: 1, aisleKey: regular.aisleKey, addedBy, addedColor });
+    added.push(regular.name);
+  }
+  return added;
+}
+
+/** Force a known item on (1) / off (0) the usuals list, or clear back to auto (null). */
+export function setRegularOverride(slug, nameKey, value) {
+  const v = value === 1 || value === 0 ? value : null;
+  db.prepare('UPDATE known_items SET regular_override = ? WHERE room_slug = ? AND name_key = ?').run(
+    v,
+    slug,
+    String(nameKey || '').toLowerCase().trim()
+  );
 }
 
 export function setItemDone(slug, itemId, done, doneBy) {

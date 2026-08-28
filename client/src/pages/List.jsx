@@ -36,6 +36,18 @@ export default function List() {
   const aisleCount = groups.length;
   const doneCount = room.items.filter((i) => i.done).length;
 
+  const regulars = room.regulars || [];
+  const usualsToAdd = regulars.filter((r) => !r.onList).length;
+
+  function handleAddUsuals() {
+    send({
+      type: 'add_usuals',
+      addedBy: identity?.id,
+      addedColor: identity?.color,
+      addedByName: identity?.name,
+    });
+  }
+
   function handleAdd(raw, stepperQty) {
     const { name, qty: typedQty } = parseNameAndQty(raw);
     if (!name) return;
@@ -173,10 +185,37 @@ export default function List() {
 
       <OfferBanner slug={slug} />
 
+      {totalItems > 0 && usualsToAdd > 0 && (
+        <div style={{ padding: '10px 20px 2px', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={handleAddUsuals}
+            className="ticket"
+            style={{ fontSize: 13, padding: '9px 16px 9px 22px' }}
+          >
+            + Add the usuals ({usualsToAdd})
+          </button>
+        </div>
+      )}
+
       <div style={{ flex: 1 }}>
         {totalItems === 0 ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-            Nothing on the list yet — add the first thing
+          <div style={{ padding: '44px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+            {usualsToAdd > 0 ? (
+              <>
+                <div style={{ marginBottom: 16 }}>Fresh list. Want to start from your usuals?</div>
+                <button
+                  type="button"
+                  onClick={handleAddUsuals}
+                  className="ticket"
+                  style={{ margin: '0 auto', fontSize: 15 }}
+                >
+                  Start with your usuals ({usualsToAdd})
+                </button>
+              </>
+            ) : (
+              'Nothing on the list yet — add the first thing'
+            )}
           </div>
         ) : (
           groups.map((group) => (

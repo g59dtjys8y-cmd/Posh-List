@@ -17,6 +17,9 @@ import {
   setItemDone,
   deleteItem,
   clearDoneItems,
+  addRegularsToList,
+  setRegularOverride,
+  getKnownItems,
   upsertPerson,
   touchPerson,
 } from './db.js';
@@ -316,6 +319,37 @@ function handleMessage(ws, slug, msg) {
     case 'clear_done': {
       clearDoneItems(slug);
       broadcastState(slug);
+      break;
+    }
+
+    case 'add_usuals': {
+      const added = addRegularsToList(slug, {
+        addedBy: msg.addedBy || ws.personId,
+        addedColor: msg.addedColor,
+      });
+      broadcastState(slug);
+      if (added.length) {
+        broadcast(slug, {
+          type: 'item_added',
+          item: { name: `the usuals (${added.length})`, aisleKey: 'cupboard' },
+          addedByName: msg.addedByName || null,
+          fromPersonId: ws.personId,
+        });
+      }
+      break;
+    }
+
+    case 'set_regular': {
+      if (typeof msg.nameKey !== 'string' || !msg.nameKey.trim()) return;
+      const value = msg.value === 1 || msg.value === 0 ? msg.value : null;
+      setRegularOverride(slug, msg.nameKey, value);
+      broadcastState(slug);
+      ws.send(JSON.stringify({ type: 'known_items', items: getKnownItems(slug) }));
+      break;
+    }
+
+    case 'request_known_items': {
+      ws.send(JSON.stringify({ type: 'known_items', items: getKnownItems(slug) }));
       break;
     }
 

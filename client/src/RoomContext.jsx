@@ -26,6 +26,7 @@ export function RoomProvider({ slug, children }) {
   const [identity, setIdentity] = useState(() => getIdentity(slug));
   const [toasts, setToasts] = useState([]);
   const [aliasResult, setAliasResult] = useState(null);
+  const [knownItems, setKnownItems] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const reconnectAttempt = useRef(0);
@@ -92,6 +93,8 @@ export function RoomProvider({ slug, children }) {
           setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
         } else if (msg.type === 'alias_result') {
           setAliasResult(msg);
+        } else if (msg.type === 'known_items') {
+          setKnownItems(msg.items);
         }
       };
 
@@ -158,6 +161,10 @@ export function RoomProvider({ slug, children }) {
 
   const clearAliasResult = useCallback(() => setAliasResult(null), []);
 
+  const requestKnownItems = useCallback(() => {
+    send({ type: 'request_known_items' });
+  }, [send]);
+
   const activeLayout = useMemo(() => {
     if (!room) return null;
     return room.aisleLayouts.find((l) => l.id === room.activeLayoutId) || room.aisleLayouts[0];
@@ -176,8 +183,10 @@ export function RoomProvider({ slug, children }) {
       activeLayout,
       aliasResult,
       clearAliasResult,
+      knownItems,
+      requestKnownItems,
     }),
-    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult]
+    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult, knownItems, requestKnownItems]
   );
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
