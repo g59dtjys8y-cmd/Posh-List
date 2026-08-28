@@ -2,7 +2,7 @@
 // no npm registry access, see the project report). Caches the app shell so
 // the icon/name install cleanly and a repeat visit paints instantly; it
 // deliberately does NOT cache /api or /ws — those always need to be live.
-const CACHE_NAME = 'posh-shop-shell-v1';
+const CACHE_NAME = 'posh-list-shell-v1';
 const SHELL_ASSETS = ['/', '/index.html', '/manifest.json', '/assets/bundle.js'];
 
 self.addEventListener('install', (event) => {

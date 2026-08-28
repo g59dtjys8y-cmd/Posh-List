@@ -3,7 +3,7 @@
 // first time this id shows up in a room.
 
 function key(slug) {
-  return `posh-shop:identity:${slug}`;
+  return `posh-list:identity:${slug}`;
 }
 
 export function getIdentity(slug) {
@@ -32,7 +32,7 @@ export function saveIdentity(slug, identity) {
 // return to a list instead of the "start a new list" form silently
 // spinning up a brand new room nobody else is on, and so a menu can show
 // "your lists" instead of losing track of every list but the very last one.
-const ROOMS_KEY = 'posh-shop:rooms';
+const ROOMS_KEY = 'posh-list:rooms';
 const MAX_REMEMBERED_ROOMS = 50;
 
 /** Every room this device has opened, most recently visited first. */

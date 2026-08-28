@@ -383,5 +383,5 @@ function handleMessage(ws, slug, msg) {
 
 server.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Posh Shop server listening on http://localhost:${PORT}`);
+  console.log(`Posh List server listening on http://localhost:${PORT}`);
 });

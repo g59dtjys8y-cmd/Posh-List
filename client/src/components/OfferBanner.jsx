@@ -4,7 +4,7 @@ import { CrossIcon, TrolleyTagIcon } from './Icons.jsx';
 const OFFER_ID = 'tesco-wine-25-2026-08-24';
 
 function storageKey(slug) {
-  return `posh-shop:offer-dismissed:${slug}:${OFFER_ID}`;
+  return `posh-list:offer-dismissed:${slug}:${OFFER_ID}`;
 }
 
 /**

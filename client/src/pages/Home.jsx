@@ -86,7 +86,7 @@ export default function Home() {
           marginBottom: 18,
         }}
       >
-        <span style={{ color: 'var(--brand-yellow)' }}>POSH SHOP</span>
+        <span style={{ color: 'var(--brand-yellow)' }}>POSH LIST</span>
       </div>
 
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 40, lineHeight: 1.05, color: 'var(--on-brand)' }}>

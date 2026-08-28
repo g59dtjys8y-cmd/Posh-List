@@ -82,7 +82,7 @@ export default function List() {
               color: 'var(--on-brand)',
             }}
           >
-            POSH SHOP
+            POSH LIST
           </div>
           <NavMenu slug={slug} />
         </div>

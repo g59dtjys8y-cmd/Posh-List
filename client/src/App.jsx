@@ -37,7 +37,7 @@ export default function App() {
     <div style={{ padding: 40, textAlign: 'center' }}>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24 }}>Page not found</div>
       <a href="/" style={{ color: 'var(--on-brand-muted)', fontWeight: 600 }}>
-        Back to Posh Shop
+        Back to Posh List
       </a>
     </div>
   );

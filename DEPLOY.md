@@ -1,4 +1,4 @@
-# Deploying Posh Shop
+# Deploying Posh List
 
 This turns the code into a real, always-on website with a link your family can open — currently it only runs on whichever computer starts it.
 

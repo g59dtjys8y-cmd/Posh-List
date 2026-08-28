@@ -6,7 +6,7 @@ import { useState } from 'react';
 // permission; setAppBadge() itself resolves silently either way, so
 // without asking for that permission the badge would just never appear
 // and look broken. This is a one-time, dismissible ask for it.
-const DISMISSED_KEY = 'posh-shop:badge-prompt-dismissed';
+const DISMISSED_KEY = 'posh-list:badge-prompt-dismissed';
 
 function isDismissed() {
   try {

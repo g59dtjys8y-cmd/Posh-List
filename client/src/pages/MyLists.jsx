@@ -37,7 +37,7 @@ export default function MyLists() {
             color: 'var(--on-brand)',
           }}
         >
-          POSH SHOP
+          POSH LIST
         </div>
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)', marginTop: 10 }}>
           Your lists

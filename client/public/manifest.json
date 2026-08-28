@@ -1,6 +1,6 @@
 {
-  "name": "Posh Shop",
-  "short_name": "Posh Shop",
+  "name": "Posh List",
+  "short_name": "Posh List",
   "description": "A shared household shopping list. No accounts — send the link, everyone's on the same live list.",
   "start_url": "/",
   "scope": "/",

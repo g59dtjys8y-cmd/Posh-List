@@ -11,8 +11,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Render's disk mount path) via the DB_DIR env var — without it, data lives
 // on the service's local filesystem and will not survive a redeploy.
 const DB_DIR = process.env.DB_DIR || path.join(__dirname, 'db');
-const DB_PATH = path.join(DB_DIR, 'posh-shop.sqlite3');
+const DB_PATH = path.join(DB_DIR, 'posh-list.sqlite3');
 fs.mkdirSync(DB_DIR, { recursive: true });
+
+// The database file was named after the app's old name ("posh-shop"). If a
+// deploy still has that file (and no new-name file yet), rename it in place
+// — along with its WAL/SHM sidecars — so existing data carries over.
+const LEGACY_DB_PATH = path.join(DB_DIR, 'posh-shop.sqlite3');
+if (fs.existsSync(LEGACY_DB_PATH) && !fs.existsSync(DB_PATH)) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    if (fs.existsSync(LEGACY_DB_PATH + suffix)) {
+      fs.renameSync(LEGACY_DB_PATH + suffix, DB_PATH + suffix);
+    }
+  }
+}
 
 // Node's built-in SQLite (stable-ish since Node 22.5, still flagged
 // "experimental" in console warnings) stands in for better-sqlite3 here —
