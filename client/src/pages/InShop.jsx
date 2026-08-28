@@ -1,13 +1,30 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
+import ShopRecap from '../components/ShopRecap.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
+
+const shopStartKey = (slug) => `posh-list:shop-start:${slug}`;
+const recapAutoKey = (slug) => `posh-list:recap-auto:${slug}`;
 
 export default function InShop() {
   const { slug, room, connected, identity, send, toasts, dismissToast, activeLayout } = useRoom();
   const navigate = useNavigate();
+  const [recapOpen, setRecapOpen] = useState(false);
+
+  // Stamp when this shop session started (first time the screen is opened
+  // for this room this browser session) so the recap can show its length.
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem(shopStartKey(slug))) {
+        sessionStorage.setItem(shopStartKey(slug), String(Date.now()));
+      }
+    } catch {
+      /* sessionStorage unavailable — the recap just omits the minutes */
+    }
+  }, [slug]);
 
   // Tell the room someone's physically at the shop — housemates with the
   // app open get a one-time "anything to add?" nudge. Re-sent on reconnect
@@ -18,6 +35,20 @@ export default function InShop() {
     send({ type: 'enter_shop' });
     return () => send({ type: 'leave_shop' });
   }, [connected, send]);
+
+  // Auto-offer the recap the first time everything's ticked off, once per
+  // browser session for this room (dismissing it shouldn't re-pop it).
+  const allDone = !!room && room.items.length > 0 && room.items.every((i) => i.done);
+  useEffect(() => {
+    if (!allDone) return;
+    try {
+      if (sessionStorage.getItem(recapAutoKey(slug)) === '1') return;
+      sessionStorage.setItem(recapAutoKey(slug), '1');
+    } catch {
+      /* ignore */
+    }
+    setRecapOpen(true);
+  }, [allDone, slug]);
 
   if (!room) return null;
 
@@ -31,8 +62,35 @@ export default function InShop() {
   const aislesLeft = groups.filter((g) => g.items.some((i) => !i.done)).length;
   const progressPct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  const doneAisleCount = new Set(
+    room.items.filter((i) => i.done).map((i) => i.aisleKey)
+  ).size;
+  const shopMinutes = (() => {
+    try {
+      const started = Number(sessionStorage.getItem(shopStartKey(slug)));
+      if (!started) return 0;
+      return Math.round((Date.now() - started) / 60000);
+    } catch {
+      return 0;
+    }
+  })();
+  const shopperColor = room.people.find((p) => p.id === identity?.id)?.color;
+  const shareUrl = `${window.location.origin}/r/${room.alias || room.slug}`;
+
   function handleToggle(item) {
     send({ type: 'toggle_item', itemId: item.id, done: !item.done, doneBy: identity?.id });
+  }
+
+  function finishShop({ clear }) {
+    if (clear) send({ type: 'clear_done' });
+    try {
+      sessionStorage.removeItem(shopStartKey(slug));
+      sessionStorage.removeItem(recapAutoKey(slug));
+    } catch {
+      /* ignore */
+    }
+    setRecapOpen(false);
+    navigate(`/r/${slug}`);
   }
 
   return (
@@ -50,12 +108,22 @@ export default function InShop() {
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14, letterSpacing: '0.16em', color: 'var(--on-brand)' }}>
           IN THE SHOP
         </div>
-        <button
-          onClick={() => navigate(`/r/${slug}`)}
-          style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: 'var(--on-brand)', cursor: 'pointer' }}
-        >
-          Done
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {total > 0 && (
+            <button
+              onClick={() => setRecapOpen(true)}
+              style={{ background: 'var(--on-brand)', color: 'var(--brand-yellow)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Finish shop
+            </button>
+          )}
+          <button
+            onClick={() => navigate(`/r/${slug}`)}
+            style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: 'var(--on-brand)', cursor: 'pointer' }}
+          >
+            Done
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '18px 20px 14px', flexShrink: 0 }}>
@@ -124,6 +192,20 @@ export default function InShop() {
           ))
         )}
       </div>
+
+      {recapOpen && (
+        <ShopRecap
+          listName={room.name}
+          itemCount={done}
+          aisleCount={doneAisleCount}
+          minutes={shopMinutes}
+          shopperName={identity?.name}
+          shopperColor={shopperColor}
+          url={shareUrl}
+          onClear={done > 0 ? () => finishShop({ clear: true }) : null}
+          onClose={() => setRecapOpen(false)}
+        />
+      )}
     </div>
   );
 }
