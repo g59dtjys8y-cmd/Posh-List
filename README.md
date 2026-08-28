@@ -4,11 +4,14 @@ A shared household shopping list. No accounts, no sign-up — one person creates
 
 ## Screens
 
-- **List** — items grouped by supermarket aisle in walking order, a coloured rail per aisle, a dot showing who added each item, and a live "who's here" presence line.
+- **List** — items grouped by supermarket aisle in walking order, a coloured rail per aisle, a dot showing who added each item, and a live "who's here" presence line. A "+ Add the usuals" shelf-ticket rebuilds next week's list in one tap; a "someone's shopping now" bar nudges the house to add what's missing.
+- **Your usuals** — every item name the list has ever added, with a running count; star one to force it on or off the usuals regardless of count.
 - **Share** — the room link, a copy button, a QR code, and who's currently connected. Meant to take five seconds.
-- **In the shop** — one-handed mode: bigger tap targets, a live progress readout, and a toast when someone at home adds something while you're out.
+- **In the shop** — one-handed mode: bigger tap targets, a live progress readout, and a toast when someone at home adds something while you're out. "Finish shop" produces a shareable recap card.
 - **Layouts** — save an aisle order per supermarket you actually use, switch between them, drag to reorder.
 - **Offer banner** — a dismissible strip for a single retailer offer, dismissed per device.
+
+Anyone who joins via a share link and uses the list is offered a one-tap "start your own house's list", seeded with the aisle order they just learned.
 
 ## Requirements
 
