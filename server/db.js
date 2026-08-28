@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { nanoid } from './id.js';
-import { AISLE_KEYS } from './aisles.js';
+import { AISLE_KEYS, isValidLayoutOrder } from './aisles.js';
 import { personColorForIndex } from './colors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -119,7 +119,7 @@ function makeSlug() {
   return nanoid(6).toLowerCase().replace(/[^a-z0-9]/g, () => '0');
 }
 
-export function createRoom(name) {
+export function createRoom(name, layoutOrder) {
   let slug = makeSlug();
   // Practically never collides at 6 chars, but guard anyway.
   while (db.prepare('SELECT 1 FROM rooms WHERE slug = ?').get(slug)) {
@@ -138,7 +138,8 @@ export function createRoom(name) {
   db.exec('BEGIN');
   try {
     insertRoom.run(slug, name || 'Shopping list', defaultLayoutId, now);
-    insertLayout.run(defaultLayoutId, slug, 'Default order', JSON.stringify(AISLE_KEYS), 0, now);
+    const order = isValidLayoutOrder(layoutOrder) ? layoutOrder : AISLE_KEYS;
+    insertLayout.run(defaultLayoutId, slug, 'Default order', JSON.stringify(order), 0, now);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');

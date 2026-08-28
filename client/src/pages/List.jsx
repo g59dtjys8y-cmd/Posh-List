@@ -11,12 +11,24 @@ import BadgePrompt from '../components/BadgePrompt.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
 import { presenceText } from '../lib/presence.js';
 import { categorize, parseNameAndQty } from '../lib/categorize.js';
+import { createRoom } from '../lib/api.js';
+import { didCreateRoom } from '../lib/identity.js';
 import { useNavigate } from '../router.jsx';
+
+const SEED_SEEN_KEY = (slug) => `posh-list:seed-prompt-seen:${slug}`;
 
 export default function List() {
   const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast } = useRoom();
   const navigate = useNavigate();
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [seedDismissed, setSeedDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(SEED_SEEN_KEY(slug)) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [startingList, setStartingList] = useState(false);
 
   if (!room) {
     return (
@@ -76,6 +88,36 @@ export default function List() {
   function handleClearDone() {
     send({ type: 'clear_done' });
     setConfirmingClear(false);
+  }
+
+  // Show the "start your own list" nudge to someone who joined via a share
+  // link (didn't create this room) once they've actually used it — ticked
+  // at least one thing off — and haven't dismissed it here before.
+  const isGuest = !didCreateRoom(slug);
+  const hasTickedSomething = room.items.some((i) => i.done && i.doneBy === identity?.id);
+  const showSeedPrompt = identity && isGuest && hasTickedSomething && !seedDismissed;
+
+  function dismissSeedPrompt() {
+    setSeedDismissed(true);
+    try {
+      localStorage.setItem(SEED_SEEN_KEY(slug), '1');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function startOwnList() {
+    setStartingList(true);
+    try {
+      const { slug: newSlug } = await createRoom('Shopping list', {
+        layoutOrder: activeLayout?.order,
+        from: slug,
+      });
+      dismissSeedPrompt();
+      navigate(`/r/${newSlug}`);
+    } catch {
+      setStartingList(false);
+    }
   }
 
   return (
@@ -239,6 +281,45 @@ export default function List() {
           ))
         )}
       </div>
+
+      {showSeedPrompt && (
+        <div style={{ flexShrink: 0, padding: '12px 16px 0' }}>
+          <div
+            style={{
+              background: 'var(--field-bg)',
+              border: '1px solid var(--hairline)',
+              borderRadius: 14,
+              padding: '14px 16px',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              Like this? Start your own house's list
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.45 }}>
+              A fresh list just for your household — keeps this shop's aisle order so you're not
+              setting it up from scratch.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={startOwnList}
+                disabled={startingList}
+                className="ticket"
+                style={{ fontSize: 13, padding: '9px 16px 9px 22px' }}
+              >
+                {startingList ? 'Starting…' : 'Start my list'}
+              </button>
+              <button
+                type="button"
+                onClick={dismissSeedPrompt}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AddBar onAdd={handleAdd} variant="ticket" />
     </div>

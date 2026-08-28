@@ -158,7 +158,12 @@ async function handleApi(req, res, url) {
 
   if (pathname === '/api/rooms' && req.method === 'POST') {
     const body = await readJsonBody(req);
-    const room = createRoom(String(body.name || 'Shopping list').slice(0, 80));
+    const layoutOrder = isValidLayoutOrder(body.layoutOrder) ? body.layoutOrder : null;
+    const room = createRoom(String(body.name || 'Shopping list').slice(0, 80), layoutOrder);
+    if (body.from) {
+      // Conversion signal only — no FK, the source room isn't touched.
+      console.log(`room ${room.slug} started from ${String(body.from).slice(0, 40)}`);
+    }
     return sendJson(res, 201, { slug: room.slug });
   }
 

@@ -68,6 +68,39 @@ export function forgetVisitedRoom(slug) {
   }
 }
 
+// Which rooms this device *created* (vs. was only ever invited into via a
+// share link). Used to decide whether to nudge someone to start their own
+// house's list — a guest in someone else's room is the person that nudge is
+// for; the owner never sees it for their own room.
+const CREATED_KEY = 'posh-list:created';
+
+export function getCreatedRooms() {
+  try {
+    const raw = localStorage.getItem(CREATED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberCreatedRoom(slug) {
+  try {
+    const rooms = getCreatedRooms();
+    if (!rooms.includes(slug)) {
+      rooms.push(slug);
+      localStorage.setItem(CREATED_KEY, JSON.stringify(rooms));
+    }
+  } catch {
+    // localStorage unavailable — worst case this device sees the "start
+    // your own list" nudge in a room it actually created. Not harmful.
+  }
+}
+
+export function didCreateRoom(slug) {
+  return getCreatedRooms().includes(slug);
+}
+
 export function newPersonId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `p_${Date.now()}_${Math.random().toString(36).slice(2)}`;

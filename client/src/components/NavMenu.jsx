@@ -1,11 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '../router.jsx';
+import { useRoom } from '../RoomContext.jsx';
+import { createRoom } from '../lib/api.js';
 import { MenuIcon } from './Icons.jsx';
 
 export default function NavMenu({ slug }) {
   const [open, setOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
+  const { activeLayout } = useRoom();
+
+  async function startOwnList() {
+    if (starting) return;
+    setStarting(true);
+    try {
+      const { slug: newSlug } = await createRoom('Shopping list', {
+        layoutOrder: activeLayout?.order,
+        from: slug,
+      });
+      setOpen(false);
+      navigate(`/r/${newSlug}`);
+    } catch {
+      setStarting(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return undefined;
@@ -22,6 +41,7 @@ export default function NavMenu({ slug }) {
     { label: 'Your usuals', to: `/r/${slug}/usuals` },
     { label: 'Layouts', to: `/r/${slug}/layouts` },
     { label: 'Your lists', to: '/lists' },
+    { label: starting ? 'Starting…' : '+ Start your own list', onClick: startOwnList },
   ];
 
   return (
@@ -60,8 +80,12 @@ export default function NavMenu({ slug }) {
         >
           {items.map((item) => (
             <button
-              key={item.to}
+              key={item.label}
               onClick={() => {
+                if (item.onClick) {
+                  item.onClick();
+                  return;
+                }
                 setOpen(false);
                 navigate(item.to);
               }}
