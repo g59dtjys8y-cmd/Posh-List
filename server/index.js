@@ -23,7 +23,7 @@ import {
   upsertPerson,
   touchPerson,
 } from './db.js';
-import { isValidAisleKey, isValidLayoutOrder } from './aisles.js';
+import { isValidAisleKey, isValidLayoutOrder, guessAisleKey } from './aisles.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
@@ -105,11 +105,22 @@ function readJsonBody(req) {
   });
 }
 
+// CORS is open on the API: rooms are only as secret as their slug (same
+// trust model as the app's own share links), there's no auth to leak, and
+// this is what lets an external app like Posh Nosh add items to a list
+// someone pastes a link for, from a different origin.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
+    ...CORS_HEADERS,
   });
   res.end(payload);
 }
@@ -201,6 +212,43 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, person);
   }
 
+  // Bulk item add for external callers (e.g. Posh Nosh's "add to shopping
+  // list" import) that have no WebSocket connection to this room — reuses
+  // the exact same addItem + broadcast path a live `add_item` WS message
+  // takes, so anyone with the list open sees the items appear immediately.
+  const itemsMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/items$/);
+  if (itemsMatch && req.method === 'POST') {
+    const slug = resolveSlug(itemsMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
+    const body = await readJsonBody(req);
+    const rawItems = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
+    const source = typeof body.source === 'string' ? body.source.trim().slice(0, 40) : null;
+
+    const added = [];
+    for (const raw of rawItems) {
+      const name = String(raw?.name || '').trim().slice(0, 120);
+      if (!name) continue;
+      const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
+      const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
+      const itemId = addItem(slug, { name, qty, aisleKey, addedBy: null, addedColor: null });
+      added.push({ id: itemId, name, qty, aisleKey });
+    }
+
+    if (added.length) {
+      broadcastState(slug);
+      broadcast(slug, {
+        type: 'item_added',
+        item: added.length === 1
+          ? { name: added[0].name, aisleKey: added[0].aisleKey }
+          : { name: `${added.length} items from a recipe`, aisleKey: 'cupboard' },
+        addedByName: source || 'Posh Nosh',
+        fromPersonId: null,
+      });
+    }
+
+    return sendJson(res, 201, { added });
+  }
+
   sendJson(res, 404, { error: 'Not found' });
 }
 
@@ -211,6 +259,11 @@ async function handleApi(req, res, url) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname.startsWith('/api/')) {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, CORS_HEADERS);
+      res.end();
+      return;
+    }
     handleApi(req, res, url).catch((err) => {
       // eslint-disable-next-line no-console
       console.error('API error', err);

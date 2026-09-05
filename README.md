@@ -13,6 +13,8 @@ A shared household shopping list. No accounts, no sign-up — one person creates
 
 Anyone who joins via a share link and uses the list is offered a one-tap "start your own house's list", seeded with the aisle order they just learned.
 
+Recipe apps can add ingredients straight onto a list, given its share link — see [External API](#external-api-adding-items-from-another-app) below.
+
 ## Requirements
 
 - Node.js **22.5+** (the server uses the built-in `node:sqlite` module, which needs it)
@@ -45,6 +47,23 @@ These were built as hand-rolled equivalents to the originally specified stack (V
 ## Data model
 
 Each list is a "room" identified by a short slug in its URL (e.g. `/r/8fk3q2`) — the slug is the only thing gating access, there's no login. Joining asks for a display name only, stored per device in `localStorage`, and assigns a colour (starting from the app's two base person colours, extending by rotating hue for a third or later person). Room state — items, people, and saved aisle layouts — lives server-side in SQLite and is broadcast to everyone connected to that room over WebSocket.
+
+## External API: adding items from another app
+
+`POST /api/rooms/:slug/items` lets an external app add items to a list without an open WebSocket connection — this is what [Posh Nosh](https://github.com/g59dtjys8y-cmd/Posh-Nosh) (a recipe app by the same author) uses for its "add ingredients to shopping list" feature, given a room's share link.
+
+```
+POST /api/rooms/8fk3q2/items
+Content-Type: application/json
+
+{ "items": [{ "name": "2 cups flour" }, { "name": "200g chicken breast" }], "source": "Posh Nosh" }
+```
+
+- `items` — required, up to 100 per call. Each needs `name` (a free-text string, used as-is); `qty` (integer, defaults to 1) and `aisleKey` (one of the seven keys in `server/aisles.js`) are optional — an omitted or invalid `aisleKey` is guessed from the item name via a keyword heuristic (`guessAisleKey`), falling back to `cupboard`.
+- `source` — optional, up to 40 characters, shown in the "X added Y" toast to everyone with the list open (defaults to "Posh Nosh" since that's the only caller today).
+- Response: `201` with `{ "added": [{ id, name, qty, aisleKey }, ...] }` (empty items are silently dropped, so this can be shorter than the request).
+- Added items broadcast over WebSocket exactly like a live `add_item` message, so anyone with the list open sees them appear immediately — no polling needed on the caller's end.
+- CORS is open (`Access-Control-Allow-Origin: *`) on all `/api/*` routes — a room's slug is its only access control (same trust model as the share link itself), and there's no auth token to leak.
 
 ## Deliberately not in this app
 
