@@ -424,6 +424,41 @@ function handleMessage(ws, slug, msg) {
       break;
     }
 
+    case 'add_items': {
+      // Bulk add (e.g. from the "paste a recipe" screen) — one state
+      // broadcast and one summarising toast, not one of each per item, so
+      // adding a whole recipe's worth of ingredients doesn't flood everyone
+      // else's screen with a toast per line.
+      const rawItems = Array.isArray(msg.items) ? msg.items.slice(0, 100) : [];
+      const added = [];
+      for (const raw of rawItems) {
+        const name = String(raw?.name || '').trim().slice(0, 120);
+        if (!name) continue;
+        const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
+        const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
+        const itemId = addItem(slug, {
+          name,
+          qty,
+          aisleKey,
+          addedBy: msg.addedBy || ws.personId,
+          addedColor: msg.addedColor,
+        });
+        added.push({ id: itemId, name, qty, aisleKey });
+      }
+      if (added.length) {
+        broadcastState(slug);
+        broadcast(slug, {
+          type: 'item_added',
+          item: added.length === 1
+            ? { name: added[0].name, aisleKey: added[0].aisleKey }
+            : { name: `${added.length} items from a recipe`, aisleKey: 'cupboard' },
+          addedByName: msg.addedByName || null,
+          fromPersonId: ws.personId,
+        });
+      }
+      break;
+    }
+
     case 'set_regular': {
       if (typeof msg.nameKey !== 'string' || !msg.nameKey.trim()) return;
       const value = msg.value === 1 || msg.value === 0 ? msg.value : null;

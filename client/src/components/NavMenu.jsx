@@ -38,6 +38,7 @@ export default function NavMenu({ slug }) {
   const items = [
     { label: 'Share the list', to: `/r/${slug}/share` },
     { label: 'In the shop', to: `/r/${slug}/shop` },
+    { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
     { label: 'Your usuals', to: `/r/${slug}/usuals` },
     { label: 'Layouts', to: `/r/${slug}/layouts` },
     { label: 'Your lists', to: '/lists' },

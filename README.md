@@ -5,6 +5,7 @@ A shared household shopping list. No accounts, no sign-up — one person creates
 ## Screens
 
 - **List** — items grouped by supermarket aisle in walking order, a coloured rail per aisle, a dot showing who added each item, and a live "who's here" presence line. A "+ Add the usuals" shelf-ticket rebuilds next week's list in one tap; a "someone's shopping now" bar nudges the house to add what's missing.
+- **Add from a recipe** — paste recipe text from anywhere (a blog, a note, a text someone sent) and get back an editable, checkable list of what it found in the ingredients — edit any line, remove ones you don't want, add one it missed — before anything touches the real list. Looks for an "Ingredients" heading first; falls back to a per-line guess (skips the title, skips lines that read like a method step) when there isn't one.
 - **Your usuals** — every item name the list has ever added, with a running count; star one to force it on or off the usuals regardless of count.
 - **Share** — the room link, a copy button, a QR code, and who's currently connected. Meant to take five seconds.
 - **In the shop** — one-handed mode: bigger tap targets, a live progress readout, and a toast when someone at home adds something while you're out. "Finish shop" produces a shareable recap card.

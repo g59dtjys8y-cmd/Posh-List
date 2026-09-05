@@ -8,6 +8,7 @@ import InShop from './pages/InShop.jsx';
 import Usuals from './pages/Usuals.jsx';
 import Layouts from './pages/Layouts.jsx';
 import EditLayout from './pages/EditLayout.jsx';
+import PasteRecipe from './pages/PasteRecipe.jsx';
 
 const ROUTES = [
   { pattern: '/', render: () => <Home /> },
@@ -17,6 +18,7 @@ const ROUTES = [
   { pattern: '/r/:slug/shop', render: (p) => <InShop key={p.slug} /> },
   { pattern: '/r/:slug/usuals', render: (p) => <Usuals key={p.slug} /> },
   { pattern: '/r/:slug/layouts', render: (p) => <Layouts key={p.slug} /> },
+  { pattern: '/r/:slug/paste-recipe', render: (p) => <PasteRecipe key={p.slug} /> },
   {
     pattern: '/r/:slug/layouts/:layoutId',
     render: (p) => <EditLayout key={`${p.slug}-${p.layoutId}`} layoutId={p.layoutId} />,
