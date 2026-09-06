@@ -86,6 +86,10 @@ export default function List() {
     send({ type: 'delete_item', itemId: item.id });
   }
 
+  function handleSetNote(item, note) {
+    send({ type: 'set_item_note', itemId: item.id, note });
+  }
+
   function handleClearDone() {
     send({ type: 'clear_done' });
     setConfirmingClear(false);
@@ -312,7 +316,7 @@ export default function List() {
                 {AISLE_BY_KEY[group.aisleKey]?.label.toUpperCase()}
               </div>
               {group.items.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={handleToggle} onDelete={handleDelete} />
+                <ItemRow key={item.id} item={item} onToggle={handleToggle} onDelete={handleDelete} onSetNote={handleSetNote} />
               ))}
             </div>
           ))

@@ -10,6 +10,7 @@ import {
   setAlias,
   renameRoom,
   setOfferWhoHas,
+  setItemNote,
   setActiveLayout,
   addLayout,
   updateLayout,
@@ -391,6 +392,13 @@ function handleMessage(ws, slug, msg) {
     case 'toggle_item': {
       if (!msg.itemId) return;
       setItemDone(slug, msg.itemId, !!msg.done, msg.doneBy || ws.personId);
+      broadcastState(slug);
+      break;
+    }
+
+    case 'set_item_note': {
+      if (!msg.itemId || typeof msg.note !== 'string') return;
+      setItemNote(slug, msg.itemId, msg.note.trim().slice(0, 80));
       broadcastState(slug);
       break;
     }

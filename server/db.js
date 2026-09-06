@@ -109,13 +109,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
 `);
 
-// Lightweight migration for a room already created before this column
+// Lightweight migrations for columns added after a room/item already
 // existed — SQLite has no `ADD COLUMN IF NOT EXISTS`, so just swallow the
 // "duplicate column" error on every startup after the first.
-try {
-  db.exec('ALTER TABLE rooms ADD COLUMN offer_who_has TEXT');
-} catch (err) {
-  if (!String(err.message).includes('duplicate column')) throw err;
+for (const migration of [
+  'ALTER TABLE rooms ADD COLUMN offer_who_has TEXT',
+  'ALTER TABLE items ADD COLUMN note TEXT',
+]) {
+  try {
+    db.exec(migration);
+  } catch (err) {
+    if (!String(err.message).includes('duplicate column')) throw err;
+  }
 }
 
 // How many times an item has to be added before it's treated as a "usual".
@@ -183,6 +188,7 @@ export function getRoom(slug) {
       addedColor: i.added_color,
       done: !!i.done,
       doneBy: i.done_by,
+      note: i.note || '',
     }));
 
   const people = db
@@ -323,6 +329,17 @@ export function addItem(slug, { name, qty, aisleKey, addedBy, addedColor }) {
   ).run(id, slug, name, qty || 1, aisleKey, addedBy || null, addedColor || null, maxPos + 1, now);
   learnKnownItem(slug, name, aisleKey, now);
   return id;
+}
+
+/** A short free-text note on an item (e.g. "no substitutions", "the big
+ *  carton") — set or changed any time after the item's already on the
+ *  list, not part of adding it. Empty string clears it back to none. */
+export function setItemNote(slug, itemId, note) {
+  db.prepare('UPDATE items SET note = ? WHERE id = ? AND room_slug = ?').run(
+    note || null,
+    itemId,
+    slug
+  );
 }
 
 /**
