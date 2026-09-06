@@ -226,7 +226,7 @@ export default function List() {
         </div>
       )}
 
-      <OfferBanner slug={slug} />
+      <OfferBanner />
 
       {shoppingNotice && (
         <div

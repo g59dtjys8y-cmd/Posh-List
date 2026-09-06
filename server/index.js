@@ -9,6 +9,7 @@ import {
   resolveSlug,
   setAlias,
   renameRoom,
+  setOfferWhoHas,
   setActiveLayout,
   addLayout,
   updateLayout,
@@ -509,6 +510,15 @@ function handleMessage(ws, slug, msg) {
     case 'rename_room': {
       if (typeof msg.name !== 'string' || !msg.name.trim()) return;
       renameRoom(slug, msg.name.trim().slice(0, 80));
+      broadcastState(slug);
+      break;
+    }
+
+    case 'set_offer_who_has': {
+      // Plain informational note, not an ownership claim — anyone can set
+      // or clear it, same trust model as renaming the room.
+      if (typeof msg.text !== 'string') return;
+      setOfferWhoHas(slug, msg.text.trim().slice(0, 40));
       broadcastState(slug);
       break;
     }

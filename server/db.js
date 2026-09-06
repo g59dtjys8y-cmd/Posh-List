@@ -109,6 +109,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
 `);
 
+// Lightweight migration for a room already created before this column
+// existed — SQLite has no `ADD COLUMN IF NOT EXISTS`, so just swallow the
+// "duplicate column" error on every startup after the first.
+try {
+  db.exec('ALTER TABLE rooms ADD COLUMN offer_who_has TEXT');
+} catch (err) {
+  if (!String(err.message).includes('duplicate column')) throw err;
+}
+
 // How many times an item has to be added before it's treated as a "usual".
 // Tune after a month of real use.
 const REGULAR_THRESHOLD = 4;
@@ -203,11 +212,18 @@ export function getRoom(slug) {
     items,
     people,
     regulars,
+    offerWhoHas: room.offer_who_has || null,
   };
 }
 
 export function renameRoom(slug, name) {
   db.prepare('UPDATE rooms SET name = ? WHERE slug = ?').run(name, slug);
+}
+
+/** Plain informational note — who in the household holds the loyalty card
+ *  an offer needs, e.g. "Sam". Empty string clears it back to unset. */
+export function setOfferWhoHas(slug, text) {
+  db.prepare('UPDATE rooms SET offer_who_has = ? WHERE slug = ?').run(text || null, slug);
 }
 
 const ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;

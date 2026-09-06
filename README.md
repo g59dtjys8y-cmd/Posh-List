@@ -10,7 +10,7 @@ A shared household shopping list. No accounts, no sign-up — one person creates
 - **Share** — the room link, a copy button, a QR code, and who's currently connected. Meant to take five seconds.
 - **In the shop** — one-handed mode: bigger tap targets, a live progress readout, and a toast when someone at home adds something while you're out. "Finish shop" produces a shareable recap card.
 - **Layouts** — save an aisle order per supermarket you actually use, switch between them, drag to reorder.
-- **Offer banner** — a dismissible strip for a single retailer offer, dismissed per device.
+- **Offer banner** — a dismissible strip for a single retailer offer, dismissed per device, and auto-hidden for everyone once its end date passes. An editable "whose card is this?" note is synced live to the whole household, so whoever's heading to the shop knows whose loyalty card to bring.
 
 Anyone who joins via a share link and uses the list is offered a one-tap "start your own house's list", seeded with the aisle order they just learned.
 
