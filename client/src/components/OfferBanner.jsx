@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import { CrossIcon, TrolleyTagIcon } from './Icons.jsx';
-
-// A single hand-maintained offer — not a general offers system (see
-// README's "Deliberately not in this app"). `endsAt` is the actual
-// timestamp checked against the clock; `displayDates` is just the text
-// shown alongside it, so update both together when the offer changes.
-const OFFER = {
-  id: 'tesco-wine-25-2026-08-24',
-  retailer: 'TESCO',
-  headline: '25% off 6+ wines',
-  displayDates: 'until Mon 24 Aug',
-  disclaimer: 'Clubcard price — scan your card at checkout. Excludes Scotland & NI.',
-  endsAt: new Date('2026-08-25T00:00:00').getTime(),
-};
+import ShopLinks from './ShopLinks.jsx';
+import { OFFER, isOfferLive } from '../lib/offer.js';
 
 function storageKey(slug) {
   return `posh-list:offer-dismissed:${slug}:${OFFER.id}`;
@@ -41,7 +30,7 @@ export default function OfferBanner() {
     }
   }, [slug]);
 
-  if (Date.now() > OFFER.endsAt) return null;
+  if (!isOfferLive()) return null;
   if (dismissed) return null;
 
   function dismiss() {
@@ -116,6 +105,8 @@ export default function OfferBanner() {
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 6, lineHeight: 1.4 }}>
           {OFFER.disclaimer}
         </div>
+
+        <ShopLinks onDark />
 
         {editing ? (
           <form onSubmit={saveWhoHas} style={{ display: 'flex', gap: 6, marginTop: 9 }}>

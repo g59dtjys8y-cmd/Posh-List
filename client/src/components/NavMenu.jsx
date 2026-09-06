@@ -36,12 +36,13 @@ export default function NavMenu({ slug }) {
   }, [open]);
 
   const items = [
+    { label: 'Home', to: '/' },
     { label: 'Share the list', to: `/r/${slug}/share` },
     { label: 'In the shop', to: `/r/${slug}/shop` },
     { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
     { label: 'Your usuals', to: `/r/${slug}/usuals` },
     { label: 'Layouts', to: `/r/${slug}/layouts` },
-    { label: 'Your lists', to: '/lists' },
+    { label: 'Manage lists', to: '/lists' },
     { label: starting ? 'Starting…' : '+ Start your own list', onClick: startOwnList },
   ];
 

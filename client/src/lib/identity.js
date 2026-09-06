@@ -59,6 +59,19 @@ export function rememberVisitedRoom(slug, name) {
   }
 }
 
+/** Overwrites the whole visited-rooms array — for quick-remove's undo,
+ *  which needs to restore the exact prior array rather than re-adding one
+ *  room via `rememberVisitedRoom` (that would unshift it to the front and
+ *  stamp a fresh `lastVisitedAt`, silently reordering the list and
+ *  misreporting when it was last opened). */
+export function saveVisitedRooms(rooms) {
+  try {
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms.slice(0, MAX_REMEMBERED_ROOMS)));
+  } catch {
+    // localStorage unavailable — same as everywhere else here, just won't persist.
+  }
+}
+
 export function forgetVisitedRoom(slug) {
   try {
     const rooms = getVisitedRooms().filter((r) => r.slug !== slug);
