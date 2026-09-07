@@ -246,19 +246,6 @@ export default function Home() {
             )}
           </Link>
         ))}
-        <Link
-          to="/lists"
-          style={{
-            display: 'block',
-            padding: '13px 20px',
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textDecoration: 'none',
-          }}
-        >
-          Manage lists
-        </Link>
       </div>
 
       <div style={{ flexShrink: 0, padding: '12px 16px 16px', background: '#fff', borderTop: '1px solid var(--hairline)' }}>
