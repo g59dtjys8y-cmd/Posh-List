@@ -25,6 +25,22 @@ export async function fetchRoom(slug) {
 }
 
 /**
+ * Rename a room from a screen with no live WS connection to it (My lists
+ * manages every list this device knows about, not just whichever one is
+ * currently open). A room page itself renames over its own WS connection
+ * instead — see the `rename_room` message in RoomContext's `send`.
+ */
+export async function renameRoom(slug, name) {
+  const res = await fetch(`/api/rooms/${slug}/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error('Could not rename list');
+  return res.json();
+}
+
+/**
  * Home's quick-add row has no live WebSocket connection to the room it's
  * adding to, so this goes over REST instead — and unlike a normal add, a
  * repeat tap bumps the existing line's quantity rather than adding a

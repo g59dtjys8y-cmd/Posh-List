@@ -217,6 +217,22 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, person);
   }
 
+  // Renaming from a screen with no live WS connection to this room (My
+  // lists manages every room this device knows about, not just the one
+  // that's currently open) — same effect as the `rename_room` WS message,
+  // just reachable without opening the list first.
+  const renameMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/rename$/);
+  if (renameMatch && req.method === 'POST') {
+    const slug = resolveSlug(renameMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
+    const body = await readJsonBody(req);
+    const name = String(body.name || '').trim().slice(0, 80);
+    if (!name) return sendJson(res, 400, { error: 'name required' });
+    renameRoom(slug, name);
+    broadcastState(slug);
+    return sendJson(res, 200, { name });
+  }
+
   // Bulk item add for external callers (e.g. Posh Nosh's "add to shopping
   // list" import) that have no WebSocket connection to this room — reuses
   // the exact same addItem + broadcast path a live `add_item` WS message

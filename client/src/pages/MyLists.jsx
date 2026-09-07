@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from '../router.jsx';
-import { createRoom } from '../lib/api.js';
+import { createRoom, renameRoom } from '../lib/api.js';
 import { getVisitedRooms, saveVisitedRooms } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import { CrossIcon } from '../components/Icons.jsx';
@@ -25,8 +25,35 @@ export default function MyLists() {
   const [rooms, setRooms] = useState(getVisitedRooms);
   const [undo, setUndo] = useState(null); // { name, previousRooms } | null
   const undoTimer = useRef(null);
+  const [renamingSlug, setRenamingSlug] = useState(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameError, setRenameError] = useState(null);
 
   useEffect(() => () => clearTimeout(undoTimer.current), []);
+
+  function startRenaming(room) {
+    setRenameError(null);
+    setRenameDraft(room.name);
+    setRenamingSlug(room.slug);
+  }
+
+  async function saveRename(e, room) {
+    e.preventDefault();
+    const name = renameDraft.trim().slice(0, 80);
+    if (!name || name === room.name) {
+      setRenamingSlug(null);
+      return;
+    }
+    try {
+      await renameRoom(room.slug, name);
+      const next = rooms.map((r) => (r.slug === room.slug ? { ...r, name } : r));
+      setRooms(next);
+      saveVisitedRooms(next);
+      setRenamingSlug(null);
+    } catch {
+      setRenameError('Could not rename — try again');
+    }
+  }
 
   async function startNew() {
     setBusy(true);
@@ -94,46 +121,117 @@ export default function MyLists() {
             No lists yet on this device — start one, or open someone else's share link.
           </div>
         ) : (
-          rooms.map((r) => (
-            <div key={r.slug} style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--hairline)' }}>
-              <Link
-                to={`/r/${r.slug}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  padding: '15px 8px 15px 20px',
-                  flex: 1,
-                  minWidth: 0,
-                  textDecoration: 'none',
-                }}
-              >
-                <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{r.name}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
-                  {relativeTime(r.lastVisitedAt)}
-                </span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => removeRoom(r)}
-                aria-label={`Remove ${r.name}`}
-                style={{
-                  flexShrink: 0,
-                  width: 48,
-                  background: 'none',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-              >
-                <CrossIcon color="var(--icon-muted)" />
-              </button>
-            </div>
-          ))
+          rooms.map((r) =>
+            renamingSlug === r.slug ? (
+              <div key={r.slug} style={{ padding: '11px 20px', borderBottom: '1px solid var(--hairline)' }}>
+                <form onSubmit={(e) => saveRename(e, r)} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    autoFocus
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    maxLength={80}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: 'var(--text)',
+                      border: '1px solid var(--hairline-strong)',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      background: 'var(--field-bg)',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRenamingSlug(null)}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </form>
+                {renameError && (
+                  <div style={{ fontSize: 12, color: 'var(--ticket-pink)', marginTop: 6 }}>{renameError}</div>
+                )}
+              </div>
+            ) : (
+              <div key={r.slug} style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--hairline)' }}>
+                <Link
+                  to={`/r/${r.slug}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '15px 8px 15px 20px',
+                    flex: 1,
+                    minWidth: 0,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {r.name}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {relativeTime(r.lastVisitedAt)}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => startRenaming(r)}
+                  aria-label={`Rename ${r.name}`}
+                  style={{
+                    flexShrink: 0,
+                    width: 40,
+                    background: 'none',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 15,
+                    color: 'var(--icon-muted)',
+                    cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeRoom(r)}
+                  aria-label={`Remove ${r.name}`}
+                  style={{
+                    flexShrink: 0,
+                    width: 48,
+                    background: 'none',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <CrossIcon color="var(--icon-muted)" />
+                </button>
+              </div>
+            )
+          )
         )}
       </div>
 

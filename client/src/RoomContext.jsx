@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { fetchRoom } from './lib/api.js';
-import { getIdentity, saveIdentity, newPersonId, rememberVisitedRoom } from './lib/identity.js';
+import {
+  getIdentity,
+  saveIdentity,
+  newPersonId,
+  rememberVisitedRoom,
+  getVisitedRooms,
+  saveVisitedRooms,
+} from './lib/identity.js';
 
 const RoomContext = createContext(null);
 
@@ -53,6 +60,25 @@ export function RoomProvider({ slug, children }) {
       cancelled = true;
     };
   }, [slug]);
+
+  // A rename (this device's own, or anyone else's — the state broadcast
+  // looks the same either way) only reaches the server + this open room by
+  // default; without this, Home and My lists would keep showing whatever
+  // name was current when this device last (re)mounted the room, until
+  // it happened to revisit. `saveVisitedRooms` patches the name in place
+  // rather than `rememberVisitedRoom`, which would also bump it to the
+  // top of the list and stamp a fresh "just now" — a name changing isn't
+  // a visit.
+  useEffect(() => {
+    if (!room) return;
+    const rooms = getVisitedRooms();
+    const idx = rooms.findIndex((r) => r.slug === slug);
+    if (idx !== -1 && rooms[idx].name !== room.name) {
+      const next = [...rooms];
+      next[idx] = { ...next[idx], name: room.name };
+      saveVisitedRooms(next);
+    }
+  }, [slug, room?.name]);
 
   useEffect(() => {
     let cancelled = false;

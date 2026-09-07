@@ -30,6 +30,8 @@ export default function List() {
     }
   });
   const [startingList, setStartingList] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   if (!room) {
     return (
@@ -93,6 +95,18 @@ export default function List() {
   function handleClearDone() {
     send({ type: 'clear_done' });
     setConfirmingClear(false);
+  }
+
+  function startEditingName() {
+    setNameDraft(room.name);
+    setEditingName(true);
+  }
+
+  function saveName(e) {
+    e.preventDefault();
+    const name = nameDraft.trim();
+    if (name && name !== room.name) send({ type: 'rename_room', name });
+    setEditingName(false);
   }
 
   // Show the "start your own list" nudge to someone who joined via a share
@@ -172,9 +186,75 @@ export default function List() {
       </div>
 
       <div style={{ padding: '18px 20px 4px', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)' }}>
-          {room.name}
-        </div>
+        {editingName ? (
+          <form onSubmit={saveName} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={80}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: 22,
+                color: 'var(--text)',
+                border: '1px solid var(--hairline-strong)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                background: 'var(--field-bg)',
+              }}
+            />
+            <button
+              type="submit"
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer', flexShrink: 0 }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingName(false)}
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+            >
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={startEditingName}
+            aria-label="Rename this list"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              maxWidth: '100%',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: 27,
+                lineHeight: 1,
+                color: 'var(--text)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {room.name}
+            </span>
+            <span style={{ fontSize: 14, color: 'var(--icon-muted)', flexShrink: 0 }}>✎</span>
+          </button>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, minHeight: 18 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
