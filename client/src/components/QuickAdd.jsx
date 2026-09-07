@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { addItemsToRoom } from '../lib/api.js';
+import { quickAddItem } from '../lib/api.js';
 import { getIdentity } from '../lib/identity.js';
 import { getQuickAddItems, saveQuickAddItems } from '../lib/quickAdd.js';
 import { CrossIcon, PlusIcon } from './Icons.jsx';
@@ -37,8 +37,12 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
       // one, so the toast anyone else sees reads like a person added it
       // rather than a generic source label.
       const source = getIdentity(slug)?.name || 'Quick add';
-      await addItemsToRoom(slug, [{ name }], source);
-      showFeedback(`Added ${name} to ${roomName || 'the list'}`);
+      const result = await quickAddItem(slug, name, source);
+      showFeedback(
+        result.incremented
+          ? `${name} is now ×${result.qty} on ${roomName || 'the list'}`
+          : `Added ${name} to ${roomName || 'the list'}`
+      );
       onAdded?.();
     } catch {
       showFeedback(`Couldn't add ${name} — try again`);

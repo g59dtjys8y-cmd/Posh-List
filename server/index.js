@@ -17,6 +17,7 @@ import {
   deleteLayout,
   addItem,
   addItems,
+  incrementOrAddItem,
   setItemDone,
   deleteItem,
   clearDoneItems,
@@ -252,6 +253,33 @@ async function handleApi(req, res, url) {
     }
 
     return sendJson(res, 201, { added });
+  }
+
+  // Home's quick-add row — a single named item, one tap. Unlike the bulk
+  // endpoint above, a repeat of the same name bumps its quantity instead
+  // of adding another line; that's the whole point of a one-tap shortcut,
+  // and not something the recipe-import path above should also do (an
+  // imported recipe's ingredient list is exact, not a running tally).
+  const quickAddMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/quick-add$/);
+  if (quickAddMatch && req.method === 'POST') {
+    const slug = resolveSlug(quickAddMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
+    const body = await readJsonBody(req);
+    const name = String(body.name || '').trim().slice(0, 120);
+    if (!name) return sendJson(res, 400, { error: 'name required' });
+    const source = typeof body.source === 'string' ? body.source.trim().slice(0, 40) : null;
+
+    const result = incrementOrAddItem(slug, { name, aisleKey: guessAisleKey(name) });
+
+    broadcastState(slug);
+    broadcast(slug, {
+      type: 'item_added',
+      item: { id: result.id, name: result.name, qty: result.qty, aisleKey: result.aisleKey },
+      addedByName: source || 'Quick add',
+      fromPersonId: null,
+    });
+
+    return sendJson(res, 201, result);
   }
 
   sendJson(res, 404, { error: 'Not found' });

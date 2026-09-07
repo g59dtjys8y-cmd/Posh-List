@@ -25,17 +25,18 @@ export async function fetchRoom(slug) {
 }
 
 /**
- * Add items to a room over REST rather than its WebSocket — for callers
- * (Home's quick-add row, an external app) that have no live connection to
- * the room open. Goes through the same bulk-add path a WS `add_items`
- * message does, so anyone with the list open sees it appear immediately.
+ * Home's quick-add row has no live WebSocket connection to the room it's
+ * adding to, so this goes over REST instead — and unlike a normal add, a
+ * repeat tap bumps the existing line's quantity rather than adding a
+ * second "Wine" row, which is the whole point of a one-tap shortcut.
+ * Broadcasts to anyone with the list open, same as any other add.
  */
-export async function addItemsToRoom(slug, items, source) {
-  const res = await fetch(`/api/rooms/${slug}/items`, {
+export async function quickAddItem(slug, name, source) {
+  const res = await fetch(`/api/rooms/${slug}/quick-add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, source }),
+    body: JSON.stringify({ name, source }),
   });
-  if (!res.ok) throw new Error('Could not add items');
+  if (!res.ok) throw new Error('Could not add item');
   return res.json();
 }

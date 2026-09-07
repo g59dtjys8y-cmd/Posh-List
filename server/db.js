@@ -426,6 +426,34 @@ export function addItems(slug, items, { addedBy, addedColor } = {}) {
   return added;
 }
 
+/**
+ * Quick-add's one-tap behaviour: bump an already-on-the-list quantity
+ * instead of adding a second line for the same thing — tapping "Milk"
+ * three times should read "Milk ×3", not three separate "Milk" rows. Only
+ * matches a *live* item (not done) by name — a ticked-off "Milk" from last
+ * week doesn't count as still being on the list, so this rightly starts a
+ * fresh line rather than un-ticking someone else's finished shop.
+ */
+export function incrementOrAddItem(slug, { name, aisleKey, addedBy, addedColor }) {
+  const key = name.toLowerCase().trim();
+  const existing = db
+    .prepare("SELECT id, name, qty, aisle_key FROM items WHERE room_slug = ? AND done = 0 AND lower(trim(name)) = ?")
+    .get(slug, key);
+
+  if (existing) {
+    const qty = existing.qty + 1;
+    db.prepare('UPDATE items SET qty = ? WHERE id = ?').run(qty, existing.id);
+    // Bumping a differently-cased tap ("WINE" while "wine" is on the list)
+    // still just increments the existing line — the display name it
+    // already has stays put rather than getting silently retyped.
+    learnKnownItem(slug, existing.name, existing.aisle_key, Date.now());
+    return { id: existing.id, name: existing.name, qty, aisleKey: existing.aisle_key, incremented: true };
+  }
+
+  const id = addItem(slug, { name, qty: 1, aisleKey, addedBy, addedColor });
+  return { id, name, qty: 1, aisleKey, incremented: false };
+}
+
 /** A short free-text note on an item (e.g. "no substitutions", "the big
  *  carton") — set or changed any time after the item's already on the
  *  list, not part of adding it. Empty string clears it back to none. */
