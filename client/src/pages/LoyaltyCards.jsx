@@ -4,6 +4,7 @@ import { useNavigate } from '../router.jsx';
 import { BackIcon, PencilIcon, CrossIcon, PlusIcon } from '../components/Icons.jsx';
 import QRCode from '../components/QRCode.jsx';
 import { compressImageFile } from '../lib/imageResize.js';
+import { exportCards, parseBackup } from '../lib/loyaltyBackup.js';
 
 /**
  * A household's loyalty/membership cards. A typed membership number renders
@@ -14,7 +15,7 @@ import { compressImageFile } from '../lib/imageResize.js';
  * field alone is enough to save a card; both is fine too.
  */
 export default function LoyaltyCards() {
-  const { slug, room, send } = useRoom();
+  const { slug, room, send, connected } = useRoom();
   const navigate = useNavigate();
   const [openId, setOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null); // null = not editing, 'new' = adding
@@ -24,6 +25,10 @@ export default function LoyaltyCards() {
   const [photoPreviouslySet, setPhotoPreviouslySet] = useState(false);
   const [photoError, setPhotoError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [backupError, setBackupError] = useState(null);
+  const [pendingImport, setPendingImport] = useState(null); // parsed card array awaiting confirm, or null
+  const [importing, setImporting] = useState(false);
 
   if (!room) return null;
   const cards = room.loyaltyCards || [];
@@ -94,6 +99,54 @@ export default function LoyaltyCards() {
   function removeCard(card) {
     send({ type: 'delete_loyalty_card', cardId: card.id });
     if (openId === card.id) setOpenId(null);
+  }
+
+  async function handleExport() {
+    setBackupError(null);
+    setExporting(true);
+    try {
+      const data = await exportCards(slug, cards, room.name);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `posh-list-cards-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setBackupError("Couldn't prepare the export — try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleImportFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBackupError(null);
+    try {
+      const text = await file.text();
+      setPendingImport(parseBackup(text));
+    } catch (err) {
+      setBackupError(err.message);
+    }
+  }
+
+  function cancelImport() {
+    setPendingImport(null);
+  }
+
+  function confirmImport() {
+    if (!connected || !pendingImport) return;
+    setImporting(true);
+    for (const card of pendingImport) {
+      send({ type: 'add_loyalty_card', label: card.label, codeValue: card.codeValue, photoDataUrl: card.photoDataUrl });
+    }
+    setImporting(false);
+    setPendingImport(null);
   }
 
   const showingPhotoPreview = photoDataUrl || (photoDataUrl === undefined && photoPreviouslySet);
@@ -237,6 +290,105 @@ export default function LoyaltyCards() {
             )}
           </div>
         ))}
+
+        <div style={{ padding: '24px 20px 8px', marginTop: cards.length ? 8 : 0, borderTop: cards.length ? '1px solid var(--hairline)' : 'none' }}>
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+            The backup file holds card numbers and photos as plain, unencrypted data — keep it somewhere private.
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={cards.length === 0 || exporting}
+              style={{
+                flex: 1,
+                background: 'none',
+                border: '1px solid var(--hairline-strong)',
+                borderRadius: 10,
+                padding: '10px 0',
+                fontSize: 13,
+                fontWeight: 700,
+                color: cards.length === 0 ? 'var(--hairline-strong)' : 'var(--text)',
+                cursor: cards.length === 0 || exporting ? 'default' : 'pointer',
+              }}
+            >
+              {exporting ? 'Preparing…' : 'Export as file'}
+            </button>
+            <label
+              title={connected ? undefined : "Not connected — can't import right now"}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'none',
+                border: '1px solid var(--hairline-strong)',
+                borderRadius: 10,
+                padding: '10px 0',
+                fontSize: 13,
+                fontWeight: 700,
+                color: connected ? 'var(--text)' : 'var(--hairline-strong)',
+                cursor: connected ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Import from file
+              <input
+                type="file"
+                accept="application/json"
+                disabled={!connected}
+                onChange={handleImportFileChange}
+                style={{ display: 'none' }}
+              />
+            </label>
+          </div>
+          {!connected && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+              Not connected to the list right now — importing is disabled until you're back online.
+            </div>
+          )}
+          {backupError && (
+            <div style={{ fontSize: 12, color: 'var(--ticket-pink)', marginTop: 8, fontWeight: 600 }}>{backupError}</div>
+          )}
+
+          {pendingImport && (
+            <div style={{ marginTop: 12, padding: 14, background: 'var(--field-bg)', borderRadius: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                Add {pendingImport.length} {pendingImport.length === 1 ? 'card' : 'cards'} from this file?
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
+                This adds to the cards already here — it doesn't replace or merge with them. Importing
+                the same file twice will create duplicates.
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={cancelImport}
+                  style={{
+                    flex: 1,
+                    background: 'none',
+                    border: 'none',
+                    padding: '10px 0',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmImport}
+                  disabled={!connected || importing}
+                  className="ticket"
+                  style={{ flex: 2, justifyContent: 'center', fontSize: 14 }}
+                >
+                  {importing ? 'Adding…' : `Add ${pendingImport.length}`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {editingId !== null ? (
