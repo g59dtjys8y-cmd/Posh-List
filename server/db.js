@@ -122,12 +122,34 @@ db.exec(`
     PRIMARY KEY (room_slug, endpoint)
   );
 
+  -- A household's loyalty/membership cards (Tesco Clubcard, Nectar, a
+  -- Co-op number, etc). code_value is a typed membership number, rendered
+  -- client-side as a real scannable QR — that works for schemes whose app
+  -- accepts a QR encoding of the plain number, but not every scheme does
+  -- (several use a linear barcode format a generic QR can't reproduce), so
+  -- photo is a guaranteed-correct fallback: a snap of the real card,
+  -- scannable exactly as printed. Either field alone is enough; both is
+  -- fine too. photo is kept out of getRoom()'s broadcast state (it'd bloat
+  -- every WS state push for a room with cards) and served instead from its
+  -- own REST endpoint.
+  CREATE TABLE IF NOT EXISTS loyalty_cards (
+    id TEXT PRIMARY KEY,
+    room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    code_value TEXT,
+    photo BLOB,
+    photo_type TEXT,
+    position INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_layouts_room ON layouts(room_slug);
   CREATE INDEX IF NOT EXISTS idx_items_room ON items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug);
   CREATE INDEX IF NOT EXISTS idx_room_aliases_room ON room_aliases(room_slug);
   CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_push_subscriptions_room ON push_subscriptions(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_loyalty_cards_room ON loyalty_cards(room_slug);
 `);
 
 // Lightweight migrations for columns added after a room/item already
@@ -284,6 +306,7 @@ export function getRoom(slug) {
     people,
     regulars,
     offerWhoHas: room.offer_who_has || null,
+    loyaltyCards: getLoyaltyCards(slug),
   };
 }
 
@@ -388,6 +411,80 @@ export function deleteLayout(slug, layoutId) {
     setActiveLayout(slug, remaining[0].id);
   }
   return true;
+}
+
+/** Every loyalty card for a room, lightest weight first — no photo bytes
+ *  (see getLoyaltyCardPhoto for those), just whether one's set, so this is
+ *  cheap enough to sit inside every getRoom() / WS state broadcast. */
+export function getLoyaltyCards(slug) {
+  return db
+    .prepare(
+      `SELECT id, label, code_value, photo_type
+         FROM loyalty_cards
+        WHERE room_slug = ?
+        ORDER BY position ASC`
+    )
+    .all(slug)
+    .map((c) => ({
+      id: c.id,
+      label: c.label,
+      codeValue: c.code_value || '',
+      hasPhoto: !!c.photo_type,
+    }));
+}
+
+/** Raw photo bytes for one card, for the dedicated REST endpoint that
+ *  serves them as an actual image response rather than JSON. */
+export function getLoyaltyCardPhoto(slug, cardId) {
+  const row = db
+    .prepare('SELECT photo, photo_type FROM loyalty_cards WHERE id = ? AND room_slug = ?')
+    .get(cardId, slug);
+  if (!row || !row.photo) return null;
+  return { data: row.photo, type: row.photo_type };
+}
+
+export function addLoyaltyCard(slug, { label, codeValue, photo, photoType }) {
+  const id = nanoid();
+  const now = Date.now();
+  const maxPos = db
+    .prepare('SELECT COALESCE(MAX(position), -1) AS m FROM loyalty_cards WHERE room_slug = ?')
+    .get(slug).m;
+  db.prepare(
+    `INSERT INTO loyalty_cards (id, room_slug, label, code_value, photo, photo_type, position, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, slug, label, codeValue || null, photo || null, photo ? photoType : null, maxPos + 1, now);
+  return id;
+}
+
+/** `photo: undefined` leaves the stored photo alone; `photo: null` clears
+ *  it. Same for codeValue (undefined = leave, empty string = clear). */
+export function updateLoyaltyCard(slug, cardId, { label, codeValue, photo, photoType }) {
+  if (label !== undefined) {
+    db.prepare('UPDATE loyalty_cards SET label = ? WHERE id = ? AND room_slug = ?').run(
+      label,
+      cardId,
+      slug
+    );
+  }
+  if (codeValue !== undefined) {
+    db.prepare('UPDATE loyalty_cards SET code_value = ? WHERE id = ? AND room_slug = ?').run(
+      codeValue || null,
+      cardId,
+      slug
+    );
+  }
+  if (photo !== undefined) {
+    db.prepare('UPDATE loyalty_cards SET photo = ?, photo_type = ? WHERE id = ? AND room_slug = ?').run(
+      photo,
+      photo ? photoType : null,
+      cardId,
+      slug
+    );
+  }
+}
+
+export function deleteLoyaltyCard(slug, cardId) {
+  db.prepare('DELETE FROM loyalty_cards WHERE id = ? AND room_slug = ?').run(cardId, slug);
 }
 
 const insertItemStmt = db.prepare(

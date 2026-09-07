@@ -27,6 +27,10 @@ import {
   upsertPerson,
   touchPerson,
   saveSubscription,
+  addLoyaltyCard,
+  updateLoyaltyCard,
+  deleteLoyaltyCard,
+  getLoyaltyCardPhoto,
 } from './db.js';
 import { isValidAisleKey, isValidLayoutOrder, guessAisleKey } from './aisles.js';
 import { notifyItemsAdded } from './push.js';
@@ -137,6 +141,26 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+const ALLOWED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+// The client resizes/compresses to a canvas data URL before sending —
+// "data:image/jpeg;base64,...." — decode it back to raw bytes here. Returns
+// null for anything malformed or an unrecognised image type rather than
+// throwing, since this only ever comes from a WS message the client fully
+// controls the shape of.
+function parseImageDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+  const match = dataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+  if (!match) return null;
+  const [, type, base64] = match;
+  if (!ALLOWED_PHOTO_TYPES.has(type)) return null;
+  try {
+    return { type, buffer: Buffer.from(base64, 'base64') };
+  } catch {
+    return null;
+  }
+}
 
 function sendJson(res, status, body, extraHeaders = {}) {
   const payload = JSON.stringify(body);
@@ -339,6 +363,30 @@ async function handleApi(req, res, url) {
 
   if (pathname === '/api/push/public-key' && req.method === 'GET') {
     return sendJson(res, 200, { key: process.env.VAPID_PUBLIC_KEY || null });
+  }
+
+  // Serves a loyalty card's photo as an actual image response (not JSON) so
+  // it can be used directly as an <img src> — mutating a card still goes
+  // over the room's WS connection like layouts do, this is read-only.
+  const loyaltyPhotoMatch = pathname.match(
+    /^\/api\/rooms\/([a-z0-9-]+)\/loyalty-cards\/([a-z0-9_-]+)\/photo$/i
+  );
+  if (loyaltyPhotoMatch && req.method === 'GET') {
+    const slug = resolveSlug(loyaltyPhotoMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
+    const photo = getLoyaltyCardPhoto(slug, loyaltyPhotoMatch[2]);
+    if (!photo) return sendJson(res, 404, { error: 'Photo not found' });
+    res.writeHead(200, {
+      'Content-Type': photo.type,
+      'Content-Length': photo.data.length,
+      // No caching: a card's photo can be replaced in an edit without its
+      // id (and so this URL) changing, and there's no ETag/version to
+      // revalidate against — always refetching is cheap for an
+      // already-compressed thumbnail-sized image.
+      'Cache-Control': 'no-store',
+      ...CORS_HEADERS,
+    });
+    return res.end(photo.data);
   }
 
   sendJson(res, 404, { error: 'Not found' });
@@ -740,6 +788,47 @@ function handleMessage(ws, slug, msg) {
     case 'set_active_layout': {
       if (!msg.layoutId) return;
       if (setActiveLayout(slug, msg.layoutId)) broadcastState(slug);
+      break;
+    }
+
+    case 'add_loyalty_card': {
+      const label = String(msg.label || '').trim().slice(0, 40);
+      if (!label) return;
+      const codeValue = typeof msg.codeValue === 'string' ? msg.codeValue.trim().slice(0, 40) : null;
+      const photo = msg.photoDataUrl ? parseImageDataUrl(msg.photoDataUrl) : null;
+      if (msg.photoDataUrl && !photo) return; // malformed/unsupported image, reject the whole add
+      addLoyaltyCard(slug, {
+        label,
+        codeValue,
+        photo: photo?.buffer,
+        photoType: photo?.type,
+      });
+      broadcastState(slug);
+      break;
+    }
+
+    case 'update_loyalty_card': {
+      if (!msg.cardId) return;
+      const patch = {};
+      if (typeof msg.label === 'string' && msg.label.trim()) patch.label = msg.label.trim().slice(0, 40);
+      if (typeof msg.codeValue === 'string') patch.codeValue = msg.codeValue.trim().slice(0, 40);
+      if (msg.clearPhoto) {
+        patch.photo = null;
+      } else if (msg.photoDataUrl) {
+        const photo = parseImageDataUrl(msg.photoDataUrl);
+        if (!photo) return; // malformed/unsupported image, reject the whole update
+        patch.photo = photo.buffer;
+        patch.photoType = photo.type;
+      }
+      updateLoyaltyCard(slug, msg.cardId, patch);
+      broadcastState(slug);
+      break;
+    }
+
+    case 'delete_loyalty_card': {
+      if (!msg.cardId) return;
+      deleteLoyaltyCard(slug, msg.cardId);
+      broadcastState(slug);
       break;
     }
 

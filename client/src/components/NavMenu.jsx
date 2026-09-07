@@ -46,6 +46,7 @@ export default function NavMenu({ slug, roomLabel }) {
           { label: 'In the shop', to: `/r/${slug}/shop` },
           { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
           { label: 'Your usuals', to: `/r/${slug}/usuals` },
+          { label: 'Loyalty cards', to: `/r/${slug}/loyalty-cards` },
           { label: 'Layouts', to: `/r/${slug}/layouts` },
         ]
       : []),
