@@ -11,6 +11,8 @@
   "engines": {
     "node": ">=22.5.0"
   },
-  "dependencies": {},
-  "_notes": "No external dependencies: this sandbox has no npm registry access, so express/cors/ws/better-sqlite3/nanoid were replaced with small hand-rolled equivalents built on Node core (node:http, node:sqlite, node:crypto). See the project report for details. A normal internet-connected environment could swap these back for the packages named in the original spec with minimal changes."
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "_notes": "Zero-dependency by default: express/cors/ws/better-sqlite3/nanoid are still small hand-rolled equivalents built on Node core (node:http, node:sqlite, node:crypto), kept that way on purpose rather than pulled back in. web-push is the one deliberate exception — VAPID JWT signing and aes128gcm payload encryption are real crypto worth not hand-rolling. See push.js."
 }

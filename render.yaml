@@ -3,13 +3,22 @@ services:
     name: posh-list
     runtime: node
     plan: starter
-    buildCommand: cd client && npm ci && npm run build
+    buildCommand: cd server && npm install && cd ../client && npm ci && npm run build
     startCommand: node server/index.js
     envVars:
       - key: NODE_VERSION
         value: 22.13.0
       - key: DB_DIR
         value: /var/data
+      # Generate with `npx web-push generate-vapid-keys`, set once in the
+      # Render dashboard, never commit the values here. Regenerating these
+      # invalidates every subscription already stored in push_subscriptions.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
     disk:
       name: posh-list-data
       mountPath: /var/data

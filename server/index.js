@@ -26,8 +26,10 @@ import {
   getKnownItems,
   upsertPerson,
   touchPerson,
+  saveSubscription,
 } from './db.js';
 import { isValidAisleKey, isValidLayoutOrder, guessAisleKey } from './aisles.js';
+import { notifyItemsAdded } from './push.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
@@ -78,6 +80,23 @@ function broadcast(slug, message) {
 function broadcastState(slug) {
   const room = roomStateWithPresence(slug);
   if (room) broadcast(slug, { type: 'state', room });
+}
+
+// The one place every "items were added" event flows through — five call
+// sites emit this (two REST, three WS), and every one of them routes
+// through here instead of broadcasting + pushing individually, so a bulk
+// add can never fan out into one push per item. `item` is whatever summary
+// object that call site already built for the WS toast (unchanged from
+// before); `names` is every item name in this batch and is what the push
+// notification actually uses — always a full batch, never called per item.
+function broadcastItemsAdded(slug, { item, names, addedByName, fromPersonId }) {
+  if (!names?.length) return;
+  broadcastState(slug);
+  broadcast(slug, { type: 'item_added', item, addedByName, fromPersonId });
+  notifyItemsAdded(slug, { names, addedByName, fromPersonId }).catch(() => {
+    // notifyItemsAdded already swallows per-subscriber failures — this
+    // only catches something going wrong before it even gets that far.
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -257,12 +276,11 @@ async function handleApi(req, res, url) {
     const added = addItems(slug, items, { addedBy: null, addedColor: null });
 
     if (added.length) {
-      broadcastState(slug);
-      broadcast(slug, {
-        type: 'item_added',
+      broadcastItemsAdded(slug, {
         item: added.length === 1
           ? { name: added[0].name, aisleKey: added[0].aisleKey }
           : { name: `${added.length} items from a recipe`, aisleKey: 'cupboard' },
+        names: added.map((a) => a.name),
         addedByName: source || 'Posh Nosh',
         fromPersonId: null,
       });
@@ -287,15 +305,40 @@ async function handleApi(req, res, url) {
 
     const result = incrementOrAddItem(slug, { name, aisleKey: guessAisleKey(name) });
 
-    broadcastState(slug);
-    broadcast(slug, {
-      type: 'item_added',
+    broadcastItemsAdded(slug, {
       item: { id: result.id, name: result.name, qty: result.qty, aisleKey: result.aisleKey },
+      names: [result.name],
       addedByName: source || 'Quick add',
       fromPersonId: null,
     });
 
     return sendJson(res, 201, result);
+  }
+
+  // A browser's push subscription for this room, plus whichever person id
+  // this device is currently using in it — nullable, since a subscription
+  // can be made before a name's been set (identify happens over WS, not
+  // necessarily before this).
+  const pushSubscribeMatch = pathname.match(/^\/api\/rooms\/([a-z0-9-]+)\/push-subscribe$/);
+  if (pushSubscribeMatch && req.method === 'POST') {
+    const slug = resolveSlug(pushSubscribeMatch[1]);
+    if (!slug) return sendJson(res, 404, { error: 'Room not found' });
+    const body = await readJsonBody(req);
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : null;
+    const p256dh = body.keys?.p256dh;
+    const auth = body.keys?.auth;
+    if (!endpoint || !p256dh || !auth) return sendJson(res, 400, { error: 'invalid subscription' });
+    saveSubscription(slug, {
+      endpoint,
+      personId: typeof body.personId === 'string' ? body.personId : null,
+      p256dh,
+      auth,
+    });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (pathname === '/api/push/public-key' && req.method === 'GET') {
+    return sendJson(res, 200, { key: process.env.VAPID_PUBLIC_KEY || null });
   }
 
   sendJson(res, 404, { error: 'Not found' });
@@ -506,10 +549,9 @@ function handleMessage(ws, slug, msg) {
         addedBy: msg.addedBy || ws.personId,
         addedColor: msg.addedColor,
       });
-      broadcastState(slug);
-      broadcast(slug, {
-        type: 'item_added',
+      broadcastItemsAdded(slug, {
         item: { id: itemId, name, qty, aisleKey },
+        names: [name],
         addedByName: msg.addedByName || null,
         fromPersonId: ws.personId,
       });
@@ -548,14 +590,15 @@ function handleMessage(ws, slug, msg) {
         addedBy: msg.addedBy || ws.personId,
         addedColor: msg.addedColor,
       });
-      broadcastState(slug);
       if (added.length) {
-        broadcast(slug, {
-          type: 'item_added',
+        broadcastItemsAdded(slug, {
           item: { name: `the usuals (${added.length})`, aisleKey: 'cupboard' },
+          names: added,
           addedByName: msg.addedByName || null,
           fromPersonId: ws.personId,
         });
+      } else {
+        broadcastState(slug);
       }
       break;
     }
@@ -580,12 +623,11 @@ function handleMessage(ws, slug, msg) {
         addedColor: msg.addedColor,
       });
       if (added.length) {
-        broadcastState(slug);
-        broadcast(slug, {
-          type: 'item_added',
+        broadcastItemsAdded(slug, {
           item: added.length === 1
             ? { name: added[0].name, aisleKey: added[0].aisleKey }
             : { name: `${added.length} items from a recipe`, aisleKey: 'cupboard' },
+          names: added.map((a) => a.name),
           addedByName: msg.addedByName || null,
           fromPersonId: ws.personId,
         });

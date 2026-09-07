@@ -107,11 +107,27 @@ db.exec(`
     PRIMARY KEY (room_slug, name_key)
   );
 
+  -- One row per (room, browser-push-subscription) pair, not per endpoint
+  -- alone — the same device/browser subscribes separately to every room it
+  -- opens, all sharing one underlying endpoint. person_id is nullable: a
+  -- subscription made before a name's been set still gets pushes, just
+  -- with no way to exclude "notify everyone except whoever did this".
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL,
+    person_id TEXT,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (room_slug, endpoint)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_layouts_room ON layouts(room_slug);
   CREATE INDEX IF NOT EXISTS idx_items_room ON items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug);
   CREATE INDEX IF NOT EXISTS idx_room_aliases_room ON room_aliases(room_slug);
   CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_push_subscriptions_room ON push_subscriptions(room_slug);
 `);
 
 // Lightweight migrations for columns added after a room/item already
@@ -610,6 +626,43 @@ export function touchPerson(slug, personId) {
     personId,
     slug
   );
+}
+
+/** How many not-yet-ticked items a room currently has — a lean count
+ *  instead of loading the whole room, since this runs on every push
+ *  notification, not just when a client actually needs the full list. */
+export function untickedCount(slug) {
+  return db.prepare('SELECT COUNT(*) AS c FROM items WHERE room_slug = ? AND done = 0').get(slug).c;
+}
+
+/** Save (or refresh) a browser's push subscription for a room. Idempotent:
+ *  the composite (room_slug, endpoint) primary key means subscribing again
+ *  — e.g. the person id becoming known after the subscription was first
+ *  made — just updates the existing row instead of duplicating it. */
+export function saveSubscription(slug, { endpoint, personId, p256dh, auth }) {
+  db.prepare(
+    `INSERT INTO push_subscriptions (room_slug, endpoint, person_id, p256dh, auth, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(room_slug, endpoint) DO UPDATE SET
+       person_id = excluded.person_id,
+       p256dh = excluded.p256dh,
+       auth = excluded.auth`
+  ).run(slug, endpoint, personId || null, p256dh, auth, Date.now());
+}
+
+/** Every device subscribed to push for a room. */
+export function getSubscriptions(slug) {
+  return db
+    .prepare('SELECT endpoint, person_id, p256dh, auth FROM push_subscriptions WHERE room_slug = ?')
+    .all(slug)
+    .map((r) => ({ endpoint: r.endpoint, personId: r.person_id, p256dh: r.p256dh, auth: r.auth }));
+}
+
+/** Removes a dead subscription by endpoint alone, across every room it was
+ *  registered for — a 404/410 from the push service means that browser's
+ *  underlying subscription is gone, not just this one room's row for it. */
+export function deleteSubscription(endpoint) {
+  db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
 }
 
 export default db;

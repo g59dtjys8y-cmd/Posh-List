@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { fetchRoom } from './lib/api.js';
+import { subscribeToPush } from './lib/push.js';
 import {
   getIdentity,
   saveIdentity,
@@ -175,6 +176,16 @@ export function RoomProvider({ slug, children }) {
     },
     [slug, send]
   );
+
+  // Push only actually notifies once permission's been granted (BadgePrompt
+  // asks for that on a tap) — this just makes sure a granted permission
+  // turns into an actual subscription for *this* room without the user
+  // having to do anything else. Re-runs (harmlessly, it's an upsert) if the
+  // identity for this room changes, so a subscription made before a name
+  // was set picks up the person id once there is one.
+  useEffect(() => {
+    subscribeToPush(slug, identity?.id);
+  }, [slug, identity?.id]);
 
   // Home-screen badge: reflect how many things are still unticked.
   useEffect(() => {
