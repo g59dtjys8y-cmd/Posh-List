@@ -1,5 +1,6 @@
 import { useRouter, matchPath } from './router.jsx';
 import { RoomProvider } from './RoomContext.jsx';
+import BottomNav from './components/BottomNav.jsx';
 import Home from './pages/Home.jsx';
 import MyLists from './pages/MyLists.jsx';
 import List from './pages/List.jsx';
@@ -28,28 +29,43 @@ const ROUTES = [
 export default function App() {
   const { path } = useRouter();
 
+  // BottomNav reads the current room straight from RoomProvider's context
+  // (useRoomOptional) when there is one, so it has to render *inside* the
+  // provider on room pages — outside it, it can't see the slug until the
+  // provider's own fetch has round-tripped and it has no reason to re-render
+  // once that lands.
+  let page = (
+    <>
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24 }}>Page not found</div>
+        <a href="/" style={{ color: 'var(--on-brand-muted)', fontWeight: 600 }}>
+          Back to Posh List
+        </a>
+      </div>
+      <BottomNav />
+    </>
+  );
+
   for (const route of ROUTES) {
     const params = matchPath(route.pattern, path);
     if (!params) continue;
 
-    if (!params.slug) return route.render(params);
-
-    // key by slug so switching rooms client-side (e.g. "start your own
-    // list", or the "Your lists" picker) fully remounts the provider —
-    // otherwise per-room identity state leaks from one room into the next.
-    return (
+    page = !params.slug ? (
+      <>
+        {route.render(params)}
+        <BottomNav />
+      </>
+    ) : (
+      // key by slug so switching rooms client-side (e.g. "start your own
+      // list", or the "Your lists" picker) fully remounts the provider —
+      // otherwise per-room identity state leaks from one room into the next.
       <RoomProvider key={params.slug} slug={params.slug}>
         {route.render(params)}
+        <BottomNav />
       </RoomProvider>
     );
+    break;
   }
 
-  return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 24 }}>Page not found</div>
-      <a href="/" style={{ color: 'var(--on-brand-muted)', fontWeight: 600 }}>
-        Back to Posh List
-      </a>
-    </div>
-  );
+  return page;
 }

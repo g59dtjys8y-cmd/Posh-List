@@ -89,6 +89,36 @@ export function CrossIcon({ color = 'rgba(255,255,255,0.85)', size = 13 }) {
   );
 }
 
+export function HomeIcon({ color = '#14171C', size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 11.5L12 4l8 7.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 10v9a1 1 0 001 1h10a1 1 0 001-1v-9" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 20v-5h4v5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function ListIcon({ color = '#14171C', size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="5" width="4" height="4" rx="1" stroke={color} strokeWidth="1.8" />
+      <path d="M11 7h9" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <rect x="4" y="15" width="4" height="4" rx="1" stroke={color} strokeWidth="1.8" />
+      <path d="M11 17h9" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function StackIcon({ color = '#14171C', size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="3" width="12" height="14" rx="2" stroke={color} strokeWidth="1.8" />
+      <path d="M8 20h12a1 1 0 001-1V7" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function TrolleyTagIcon({ color = '#fff', size = 15 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">

@@ -35,6 +35,10 @@
   --radius-card: 20px;
   --radius-field: 10px;
   --shelf-notch: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 62%, 11px 50%, 0 38%);
+
+  /* The fixed BottomNav's own height — one place both it and .app-page's
+     reserved padding read from, so they can't drift out of sync. */
+  --bottom-nav-height: 58px;
 }
 
 * {
@@ -71,6 +75,11 @@ button {
 .app-page {
   min-height: 100vh;
   min-height: 100dvh;
+  /* Reserve room for the fixed BottomNav (rendered once in App.jsx, on
+     every page) so it never overlaps a page's own bottom content — box-
+     sizing: border-box means this comes out of each page's own 100dvh
+     rather than adding to it. */
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
 }
 
 a {
