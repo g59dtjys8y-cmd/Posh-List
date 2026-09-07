@@ -98,7 +98,7 @@ export default function NavMenu({ slug, roomLabel }) {
                     padding: '10px 16px 4px',
                     fontFamily: 'var(--font-display)',
                     fontWeight: 700,
-                    fontSize: 11,
+                    fontSize: 12,
                     letterSpacing: '0.11em',
                     textTransform: 'uppercase',
                     color: 'var(--text-muted)',

@@ -212,7 +212,7 @@ export default function Share() {
       </form>
 
       <div style={{ marginTop: 24, flex: 1, overflow: 'hidden' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', color: 'var(--on-brand-muted)', marginBottom: 12 }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.11em', color: 'var(--on-brand-muted)', marginBottom: 12 }}>
           ON THE LIST NOW
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

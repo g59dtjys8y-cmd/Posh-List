@@ -175,7 +175,7 @@ const AddBar = forwardRef(function AddBar({ onAdd, variant = 'ticket' }, ref) {
                 textAlign: 'center',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 13,
-                fontWeight: 600,
+                fontWeight: 700,
                 color: variant === 'ticket' ? '#fff' : 'var(--text)',
               }}
             >

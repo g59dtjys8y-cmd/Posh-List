@@ -20,7 +20,7 @@ export default function Layouts() {
           >
             <BackIcon />
           </button>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--on-brand)' }}>Layouts</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--on-brand)' }}>Layouts</div>
         </div>
       </div>
 

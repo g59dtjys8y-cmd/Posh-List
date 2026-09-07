@@ -119,14 +119,23 @@ export default function EditLayout({ layoutId }) {
           >
             <BackIcon />
           </button>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--on-brand)' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--on-brand)' }}>
             {isNew ? 'Add a layout' : 'Edit layout'}
           </div>
         </div>
       </div>
 
       <div style={{ padding: '16px 20px 4px', flexShrink: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--on-brand-muted)', marginBottom: 6 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: 12,
+            letterSpacing: '0.11em',
+            color: 'var(--text-muted)',
+            marginBottom: 6,
+          }}
+        >
           LAYOUT NAME
         </div>
         <div style={{ background: 'var(--field-bg)', border: '1px solid var(--hairline)', borderRadius: 10, padding: '12px 14px' }}>
