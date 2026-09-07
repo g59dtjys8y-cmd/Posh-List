@@ -195,6 +195,17 @@ export default function Home() {
         onAdded={() => refreshRoomCount(rooms[0]?.slug)}
       />
 
+      {rooms[0]?.slug && (
+        <div style={{ padding: '0 20px 16px' }}>
+          <Link
+            to={`/r/${rooms[0].slug}/loyalty-cards`}
+            style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textDecoration: 'none' }}
+          >
+            💳 Loyalty cards
+          </Link>
+        </div>
+      )}
+
       <div style={{ flex: 1, padding: '20px 0 0', borderTop: '1px solid var(--hairline)' }}>
         <div
           style={{

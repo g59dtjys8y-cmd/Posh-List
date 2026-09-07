@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from '../router.jsx';
 import { fetchRoom } from '../lib/api.js';
 
-// Someone's list lives on the server, keyed by its slug — never lost. What
-// *is* only ever local is this device's own memory of which lists it knows
-// about (posh-list:rooms in localStorage), and that's exactly what a fresh
-// "Add to Home Screen" starts with none of: iOS gives a newly (re)installed
-// home-screen app its own separate storage, disconnected from whatever
-// Safari tab you used to open a share link in — so simply having opened the
-// link once before doesn't help the new install. This is the way back in:
-// paste the same link again, here, and this install remembers it from then
-// on, same as opening it fresh ever does.
+// A list lives on the server, keyed by its slug — never lost, whoever made
+// it. What *is* only ever local is this device's own memory of which lists
+// it knows about (posh-list:rooms in localStorage), and that's exactly what
+// a fresh "Add to Home Screen" starts with none of: iOS gives a newly
+// (re)installed home-screen app its own separate storage, disconnected from
+// whatever Safari tab you used to open the link in — even if that install
+// is on the same phone, and even if it's the list's own creator opening it,
+// not just a guest. Simply having opened the link once before doesn't help
+// the new install. This is the way back in for anyone: paste the same link
+// again, here, and this install remembers it from then on, same as opening
+// it fresh ever does.
 function extractRoomId(input) {
   const trimmed = input.trim();
   const match = trimmed.match(/\/r\/([a-z0-9-]+)/i);
@@ -48,7 +50,8 @@ export default function JoinByLink({ onBrand = false }) {
   return (
     <div>
       <div style={{ fontSize: 13, color: labelColor, marginBottom: 8 }}>
-        Already have a list? Paste the link someone sent you.
+        This app icon doesn't know about a list yet — even your own, if it was reinstalled.
+        Paste its link (yours or one shared with you) to reconnect it.
       </div>
       <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
         <input

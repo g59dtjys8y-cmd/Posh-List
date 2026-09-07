@@ -139,6 +139,12 @@ export default function Share() {
         Send link
       </button>
 
+      <div style={{ fontSize: 12, color: 'var(--on-brand-muted)', marginTop: 12, lineHeight: 1.45 }}>
+        Worth sending this link to yourself too (Notes, a text to yourself) — there's no account
+        behind this list, so if this device ever forgets it (a reinstall, clearing browser data),
+        the link is the only way back in.
+      </div>
+
       <form
         onSubmit={saveAlias}
         style={{
