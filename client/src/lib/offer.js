@@ -14,8 +14,12 @@ export const OFFER = {
 };
 
 export const SHOPS = [
-  { name: 'Tesco', url: 'https://www.tesco.com/shop/en-GB/browse/drinks/wine/all' },
-  { name: "Sainsbury's", url: 'https://www.sainsburys.co.uk/groceries/search?searchTerm=Wine' },
+  { name: 'Tesco', url: 'https://www.tesco.com/shop/en-GB/browse/drinks/wine/all', logo: '/logos/tesco.png' },
+  {
+    name: "Sainsbury's",
+    url: 'https://www.sainsburys.co.uk/groceries/search?searchTerm=Wine',
+    logo: '/logos/sainsburys.png',
+  },
 ];
 
 export function isOfferLive(now = Date.now()) {

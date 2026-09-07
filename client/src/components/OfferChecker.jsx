@@ -1,6 +1,7 @@
 import { OFFER, isOfferLive } from '../lib/offer.js';
 import ShopLinks from './ShopLinks.jsx';
 import { TrolleyTagIcon } from './Icons.jsx';
+import { Link } from '../router.jsx';
 
 /**
  * The home screen's answer to "is anything running right now?" — unlike
@@ -9,8 +10,14 @@ import { TrolleyTagIcon } from './Icons.jsx';
  * `OFFER`/`isOfferLive` with the banner so there is exactly one copy of
  * the offer facts, and `ShopLinks` so the pill styling can't drift between
  * the two surfaces.
+ *
+ * The loyalty-cards link lives here rather than inside ShopLinks: ShopLinks
+ * is shared with OfferBanner on the list page and is only ever external
+ * "go check for yourself" retailer links — an internal app route doesn't
+ * belong there. OFFER.disclaimer already tells you to scan your card at
+ * checkout, so it sits naturally with this shop cluster instead.
  */
-export default function OfferChecker() {
+export default function OfferChecker({ slug }) {
   if (isOfferLive()) {
     return (
       <div
@@ -43,6 +50,27 @@ export default function OfferChecker() {
           {OFFER.disclaimer}
         </div>
         <ShopLinks onDark />
+        {slug && (
+          <Link
+            to={`/r/${slug}/loyalty-cards`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              minHeight: 38,
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              textDecoration: 'none',
+              marginTop: 8,
+              background: 'rgba(255,255,255,0.18)',
+              color: '#fff',
+            }}
+          >
+            💳 Loyalty cards
+          </Link>
+        )}
       </div>
     );
   }
@@ -63,6 +91,28 @@ export default function OfferChecker() {
         Last one: {OFFER.headline} at {OFFER.retailer} ({OFFER.displayDates}).
       </div>
       <ShopLinks />
+      {slug && (
+        <Link
+          to={`/r/${slug}/loyalty-cards`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            minHeight: 38,
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 700,
+            textDecoration: 'none',
+            marginTop: 8,
+            background: 'var(--field-bg)',
+            color: 'var(--text)',
+            border: '1px solid var(--hairline-strong)',
+          }}
+        >
+          💳 Loyalty cards
+        </Link>
+      )}
     </div>
   );
 }

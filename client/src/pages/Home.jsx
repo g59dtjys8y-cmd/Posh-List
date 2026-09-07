@@ -192,7 +192,7 @@ export default function Home() {
       <BadgePrompt />
 
       <div style={{ padding: '16px 20px 8px' }}>
-        <OfferChecker />
+        <OfferChecker slug={rooms[0]?.slug} />
       </div>
 
       <QuickAdd
@@ -200,17 +200,6 @@ export default function Home() {
         roomName={rooms[0]?.name}
         onAdded={() => refreshRoomCount(rooms[0]?.slug)}
       />
-
-      {rooms[0]?.slug && (
-        <div style={{ padding: '0 20px 16px' }}>
-          <Link
-            to={`/r/${rooms[0].slug}/loyalty-cards`}
-            style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textDecoration: 'none' }}
-          >
-            💳 Loyalty cards
-          </Link>
-        </div>
-      )}
 
       <div style={{ flex: 1, padding: '20px 0 0', borderTop: '1px solid var(--hairline)' }}>
         <div
