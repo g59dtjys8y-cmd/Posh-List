@@ -190,7 +190,7 @@ export default function Home() {
         onAdded={() => refreshRoomCount(rooms[0]?.slug)}
       />
 
-      <div style={{ flex: 1, padding: '8px 0 0' }}>
+      <div style={{ flex: 1, padding: '20px 0 0', borderTop: '1px solid var(--hairline)' }}>
         <div
           style={{
             padding: '0 20px 8px',

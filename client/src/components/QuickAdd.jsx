@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { quickAddItem } from '../lib/api.js';
 import { getIdentity } from '../lib/identity.js';
 import { getQuickAddItems, saveQuickAddItems } from '../lib/quickAdd.js';
-import { CrossIcon, PlusIcon } from './Icons.jsx';
+import { CrossIcon, PencilIcon, PlusIcon } from './Icons.jsx';
 
 const FEEDBACK_TIMEOUT_MS = 2200;
 
@@ -73,7 +73,7 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
   if (!slug) return null;
 
   return (
-    <div style={{ padding: '0 20px 4px' }}>
+    <div style={{ padding: '20px 20px 4px', borderTop: '1px solid var(--hairline)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div
           style={{
@@ -86,13 +86,24 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
         >
           QUICK ADD
         </div>
-        <button
-          type="button"
-          onClick={() => setEditing((e) => !e)}
-          style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
-        >
-          {editing ? 'Done' : 'Edit'}
-        </button>
+        {editing ? (
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
+          >
+            Done
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit quick add"
+            style={{ background: 'none', border: 'none', padding: 0, display: 'flex', cursor: 'pointer' }}
+          >
+            <PencilIcon color="var(--text-muted)" size={14} />
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

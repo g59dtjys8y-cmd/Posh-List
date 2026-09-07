@@ -42,6 +42,15 @@ export function MicIcon({ color = '#fff', size = 20 }) {
   );
 }
 
+export function PencilIcon({ color = '#14171C', size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19 4 20z" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M13.5 6.5l4 4" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function CopyIcon({ color = '#5C646E', size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
