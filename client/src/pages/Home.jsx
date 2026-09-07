@@ -7,6 +7,7 @@ import BadgePrompt from '../components/BadgePrompt.jsx';
 import OfferChecker from '../components/OfferChecker.jsx';
 import NavMenu from '../components/NavMenu.jsx';
 import QuickAdd from '../components/QuickAdd.jsx';
+import JoinByLink from '../components/JoinByLink.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -143,6 +144,10 @@ export default function Home() {
             {busy ? 'Starting…' : 'Start the list'}
           </button>
         </form>
+
+        <div style={{ marginTop: 28, maxWidth: 420 }}>
+          <JoinByLink onBrand />
+        </div>
       </div>
     );
   }

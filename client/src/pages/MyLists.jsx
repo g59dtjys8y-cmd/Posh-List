@@ -5,6 +5,7 @@ import { getVisitedRooms, saveVisitedRooms } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import { CrossIcon } from '../components/Icons.jsx';
 import NavMenu from '../components/NavMenu.jsx';
+import JoinByLink from '../components/JoinByLink.jsx';
 
 const UNDO_TIMEOUT_MS = 6000;
 
@@ -117,8 +118,11 @@ export default function MyLists() {
 
       <div style={{ flex: 1, padding: '8px 0' }}>
         {rooms.length === 0 ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-            No lists yet on this device — start one, or open someone else's share link.
+          <div style={{ padding: '32px 24px' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
+              No lists yet on this device.
+            </div>
+            <JoinByLink />
           </div>
         ) : (
           rooms.map((r) =>
