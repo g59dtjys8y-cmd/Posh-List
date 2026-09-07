@@ -157,7 +157,7 @@ export default function Home() {
           gap: 12,
         }}
       >
-        <div style={{ minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
               fontFamily: 'var(--font-display)',
