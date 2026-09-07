@@ -6,6 +6,7 @@ import { relativeTime } from '../lib/time.js';
 import BadgePrompt from '../components/BadgePrompt.jsx';
 import OfferChecker from '../components/OfferChecker.jsx';
 import NavMenu from '../components/NavMenu.jsx';
+import QuickAdd from '../components/QuickAdd.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -13,32 +14,33 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [rooms, setRooms] = useState(getVisitedRooms);
 
+  // Fetches one room's live unticked count and folds it into `rooms` —
+  // shared by the mount-time refresh below and by QuickAdd, which needs
+  // the badge next to that room's name to reflect a tap immediately
+  // rather than waiting for the next visit to Home.
+  function refreshRoomCount(slug) {
+    fetchRoom(slug)
+      .then((room) => {
+        if (room) {
+          const count = room.items.filter((i) => !i.done).length;
+          setRooms((rs) => rs.map((x) => (x.slug === slug ? { ...x, count } : x)));
+        } else {
+          forgetVisitedRoom(slug);
+          setRooms((rs) => rs.filter((x) => x.slug !== slug));
+        }
+      })
+      .catch(() => {
+        // Network hiccup, not a confirmed 404 — leave this room alone.
+      });
+  }
+
   // Render immediately from localStorage, then let each room's count fill
   // in behind it. Only a confirmed 404 (fetchRoom resolves null) means the
   // room is actually gone — a thrown error is just a bad request, and must
   // leave that room's entry alone, or one patchy signal in the shop would
   // wipe every list on the phone.
   useEffect(() => {
-    let cancelled = false;
-    getVisitedRooms().forEach((r) => {
-      fetchRoom(r.slug)
-        .then((room) => {
-          if (cancelled) return;
-          if (room) {
-            const count = room.items.filter((i) => !i.done).length;
-            setRooms((rs) => rs.map((x) => (x.slug === r.slug ? { ...x, count } : x)));
-          } else {
-            forgetVisitedRoom(r.slug);
-            setRooms((rs) => rs.filter((x) => x.slug !== r.slug));
-          }
-        })
-        .catch(() => {
-          // Network hiccup, not a confirmed 404 — leave this room alone.
-        });
-    });
-    return () => {
-      cancelled = true;
-    };
+    getVisitedRooms().forEach((r) => refreshRoomCount(r.slug));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -181,6 +183,12 @@ export default function Home() {
       <div style={{ padding: '16px 20px 8px' }}>
         <OfferChecker />
       </div>
+
+      <QuickAdd
+        slug={rooms[0]?.slug}
+        roomName={rooms[0]?.name}
+        onAdded={() => refreshRoomCount(rooms[0]?.slug)}
+      />
 
       <div style={{ flex: 1, padding: '8px 0 0' }}>
         <div

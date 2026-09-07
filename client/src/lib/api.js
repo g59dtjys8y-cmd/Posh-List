@@ -23,3 +23,19 @@ export async function fetchRoom(slug) {
   if (!res.ok) return null;
   return res.json();
 }
+
+/**
+ * Add items to a room over REST rather than its WebSocket — for callers
+ * (Home's quick-add row, an external app) that have no live connection to
+ * the room open. Goes through the same bulk-add path a WS `add_items`
+ * message does, so anyone with the list open sees it appear immediately.
+ */
+export async function addItemsToRoom(slug, items, source) {
+  const res = await fetch(`/api/rooms/${slug}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, source }),
+  });
+  if (!res.ok) throw new Error('Could not add items');
+  return res.json();
+}
