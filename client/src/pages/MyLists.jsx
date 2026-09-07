@@ -4,6 +4,7 @@ import { createRoom } from '../lib/api.js';
 import { getVisitedRooms, saveVisitedRooms } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import { CrossIcon } from '../components/Icons.jsx';
+import NavMenu from '../components/NavMenu.jsx';
 
 const UNDO_TIMEOUT_MS = 6000;
 
@@ -58,21 +59,33 @@ export default function MyLists() {
 
   return (
     <div className="app-page" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: 'var(--brand-yellow)', flexShrink: 0, padding: '20px 20px 16px' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: 14,
-            letterSpacing: '0.16em',
-            color: 'var(--on-brand)',
-          }}
-        >
-          POSH LIST
+      <div
+        style={{
+          background: 'var(--brand-yellow)',
+          flexShrink: 0,
+          padding: '20px 20px 16px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 14,
+              letterSpacing: '0.16em',
+              color: 'var(--on-brand)',
+            }}
+          >
+            POSH LIST
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)', marginTop: 10 }}>
+            Your lists
+          </div>
         </div>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)', marginTop: 10 }}>
-          Your lists
-        </div>
+        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} />
       </div>
 
       <div style={{ flex: 1, padding: '8px 0' }}>

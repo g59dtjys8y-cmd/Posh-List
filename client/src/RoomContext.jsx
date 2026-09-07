@@ -210,3 +210,14 @@ export function useRoom() {
   if (!ctx) throw new Error('useRoom must be used inside RoomProvider');
   return ctx;
 }
+
+/**
+ * Same context as useRoom(), but returns null instead of throwing when
+ * there's no RoomProvider above it — for components that render on both
+ * room and room-less pages (e.g. NavMenu, which appears on Home as well as
+ * inside a room). Not a general escape hatch: anything that actually needs
+ * a room should still use useRoom() and fail loudly without one.
+ */
+export function useRoomOptional() {
+  return useContext(RoomContext);
+}

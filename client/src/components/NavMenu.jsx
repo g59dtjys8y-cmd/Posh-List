@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from '../router.jsx';
-import { useRoom } from '../RoomContext.jsx';
+import { useRouter } from '../router.jsx';
+import { useRoomOptional } from '../RoomContext.jsx';
 import { createRoom } from '../lib/api.js';
 import { MenuIcon } from './Icons.jsx';
 
-export default function NavMenu({ slug }) {
+export default function NavMenu({ slug, roomLabel }) {
   const [open, setOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const ref = useRef(null);
-  const navigate = useNavigate();
-  const { activeLayout } = useRoom();
+  const { path, navigate } = useRouter();
+  const activeLayout = useRoomOptional()?.activeLayout;
 
   async function startOwnList() {
     if (starting) return;
@@ -37,14 +37,23 @@ export default function NavMenu({ slug }) {
 
   const items = [
     { label: 'Home', to: '/' },
-    { label: 'Share the list', to: `/r/${slug}/share` },
-    { label: 'In the shop', to: `/r/${slug}/shop` },
-    { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
-    { label: 'Your usuals', to: `/r/${slug}/usuals` },
-    { label: 'Layouts', to: `/r/${slug}/layouts` },
+    // Only a device with a list to reach builds this group at all — no six
+    // dead entries pointing nowhere useful for a brand-new visitor.
+    ...(slug
+      ? [
+          { label: 'Open the list', to: `/r/${slug}`, heading: roomLabel },
+          { label: 'Share the list', to: `/r/${slug}/share` },
+          { label: 'In the shop', to: `/r/${slug}/shop` },
+          { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
+          { label: 'Your usuals', to: `/r/${slug}/usuals` },
+          { label: 'Layouts', to: `/r/${slug}/layouts` },
+        ]
+      : []),
     { label: 'Manage lists', to: '/lists' },
     { label: starting ? 'Starting…' : '+ Start your own list', onClick: startOwnList },
-  ];
+    // No `to` matches the page you're already on, so it drops itself from
+    // the list instead of needing a special case per page (Home included).
+  ].filter((item) => item.to !== path);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -77,36 +86,56 @@ export default function NavMenu({ slug }) {
             boxShadow: '0 12px 30px rgba(20,23,28,0.24)',
             overflow: 'hidden',
             zIndex: 30,
-            minWidth: 180,
+            minWidth: 200,
+            maxWidth: 260,
           }}
         >
           {items.map((item) => (
-            <button
-              key={item.label}
-              onClick={() => {
-                if (item.onClick) {
-                  item.onClick();
-                  return;
-                }
-                setOpen(false);
-                navigate(item.to);
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                padding: '13px 16px',
-                background: 'none',
-                border: 'none',
-                borderBottom: '1px solid var(--hairline)',
-                fontSize: 14,
-                fontWeight: 600,
-                color: 'var(--text)',
-                cursor: 'pointer',
-              }}
-            >
-              {item.label}
-            </button>
+            <div key={item.label}>
+              {item.heading && (
+                <div
+                  style={{
+                    padding: '10px 16px 4px',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    letterSpacing: '0.11em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {item.heading}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  if (item.onClick) {
+                    item.onClick();
+                    return;
+                  }
+                  setOpen(false);
+                  navigate(item.to);
+                }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '13px 16px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: '1px solid var(--hairline)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                }}
+              >
+                {item.label}
+              </button>
+            </div>
           ))}
         </div>
       )}

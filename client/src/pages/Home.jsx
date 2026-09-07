@@ -5,6 +5,7 @@ import { getVisitedRooms, forgetVisitedRoom } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import BadgePrompt from '../components/BadgePrompt.jsx';
 import OfferChecker from '../components/OfferChecker.jsx';
+import NavMenu from '../components/NavMenu.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -146,21 +147,33 @@ export default function Home() {
 
   return (
     <div className="app-page" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: 'var(--brand-yellow)', flexShrink: 0, padding: '20px 20px 16px' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: 14,
-            letterSpacing: '0.16em',
-            color: 'var(--on-brand)',
-          }}
-        >
-          POSH LIST
+      <div
+        style={{
+          background: 'var(--brand-yellow)',
+          flexShrink: 0,
+          padding: '20px 20px 16px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 14,
+              letterSpacing: '0.16em',
+              color: 'var(--on-brand)',
+            }}
+          >
+            POSH LIST
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)', marginTop: 10 }}>
+            Home
+          </div>
         </div>
-        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 27, lineHeight: 1, color: 'var(--text)', marginTop: 10 }}>
-          Home
-        </div>
+        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} />
       </div>
 
       <BadgePrompt />
