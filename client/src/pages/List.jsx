@@ -258,6 +258,14 @@ export default function List() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, minHeight: 18 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            {' '}&middot;{' '}
+            <button
+              type="button"
+              onClick={() => navigate(`/r/${slug}/loyalty-cards`)}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text)', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Loyalty cards
+            </button>
           </div>
           {doneCount > 0 &&
             (confirmingClear ? (

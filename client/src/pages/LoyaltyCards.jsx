@@ -320,7 +320,11 @@ export default function LoyaltyCards() {
               >
                 <PlusIcon size={16} />
                 Add a photo of the card (optional fallback)
-                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{ display: 'none' }} />
+                {/* No `capture` attribute — that forces the camera straight
+                    open on iOS/Android and hides the photo library option
+                    from the picker entirely. Plain accept="image/*" gives
+                    the full choice: take a new photo or pick an existing one. */}
+                <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: 'none' }} />
               </label>
             )}
           </div>
