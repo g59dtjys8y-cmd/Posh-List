@@ -19,6 +19,13 @@ services:
         sync: false
       - key: VAPID_SUBJECT
         sync: false
+      # Recovery emails ("email me my list link") — sign up at resend.com,
+      # verify a sending domain, and set these. Without them the app logs
+      # what it would have sent instead of actually sending anything.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
     disk:
       name: posh-list-data
       mountPath: /var/data

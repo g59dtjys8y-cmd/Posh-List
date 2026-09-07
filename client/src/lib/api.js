@@ -47,6 +47,22 @@ export async function renameRoom(slug, name) {
  * second "Wine" row, which is the whole point of a one-tap shortcut.
  * Broadcasts to anyone with the list open, same as any other add.
  */
+/**
+ * The standalone recovery flow (Recover.jsx) — no room open yet, just an
+ * email to look up. Always resolves the same way regardless of whether
+ * anything matched (the server deliberately doesn't say either way, so
+ * this can't be used to probe whether an email is registered to a list).
+ */
+export async function requestRecoveryEmail(email) {
+  const res = await fetch('/api/recover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error('Could not send recovery email');
+  return res.json();
+}
+
 export async function quickAddItem(slug, name, source) {
   const res = await fetch(`/api/rooms/${slug}/quick-add`, {
     method: 'POST',

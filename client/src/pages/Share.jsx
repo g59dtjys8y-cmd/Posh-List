@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRoom } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
-import { BackIcon, CopyIcon, SendIcon } from '../components/Icons.jsx';
+import { BackIcon, CopyIcon, SendIcon, CrossIcon } from '../components/Icons.jsx';
 import QRCode from '../components/QRCode.jsx';
 import { relativeTime } from '../lib/time.js';
 
@@ -12,16 +12,22 @@ function initials(name) {
 const ALIAS_INPUT_PATTERN = /^[a-z0-9-]*$/;
 
 export default function Share() {
-  const { room, identity, send, aliasResult, clearAliasResult } = useRoom();
+  const { room, identity, send, aliasResult, clearAliasResult, recoveryEmailResult, clearRecoveryEmailResult } = useRoom();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [aliasInput, setAliasInput] = useState('');
+  const [recoveryEmailInput, setRecoveryEmailInput] = useState('');
 
   useEffect(() => clearAliasResult, [clearAliasResult]);
+  useEffect(() => clearRecoveryEmailResult, [clearRecoveryEmailResult]);
 
   useEffect(() => {
     if (aliasResult?.ok) setAliasInput('');
   }, [aliasResult]);
+
+  useEffect(() => {
+    if (recoveryEmailResult?.ok) setRecoveryEmailInput('');
+  }, [recoveryEmailResult]);
 
   if (!room) return null;
 
@@ -36,6 +42,17 @@ export default function Share() {
     const alias = aliasInput.trim().toLowerCase();
     if (!alias) return;
     send({ type: 'set_alias', alias });
+  }
+
+  function saveRecoveryEmail(e) {
+    e.preventDefault();
+    const email = recoveryEmailInput.trim().toLowerCase();
+    if (!email) return;
+    send({ type: 'add_recovery_email', email });
+  }
+
+  function removeRecoveryEmail(email) {
+    send({ type: 'remove_recovery_email', email });
   }
 
   async function copyLink() {
@@ -139,12 +156,6 @@ export default function Share() {
         Send link
       </button>
 
-      <div style={{ fontSize: 12, color: 'var(--on-brand-muted)', marginTop: 12, lineHeight: 1.45 }}>
-        Worth sending this link to yourself too (Notes, a text to yourself) — there's no account
-        behind this list, so if this device ever forgets it (a reinstall, clearing browser data),
-        the link is the only way back in.
-      </div>
-
       <form
         onSubmit={saveAlias}
         style={{
@@ -213,6 +224,95 @@ export default function Share() {
         {aliasResult?.ok && (
           <div style={{ fontSize: 12, color: 'var(--on-brand)', marginTop: 8, fontWeight: 600 }}>
             Saved — this link is yours from now on.
+          </div>
+        )}
+      </form>
+
+      <form
+        onSubmit={saveRecoveryEmail}
+        style={{
+          marginTop: 16,
+          background: 'rgba(255,255,255,0.55)',
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--on-brand)' }}>
+          Email yourself this list's link
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--on-brand-muted)', marginTop: 4, lineHeight: 1.45 }}>
+          There's no account behind this list — if a device ever forgets it (a reinstall,
+          clearing browser data), this is the way back in. Recover anytime from the Home screen.
+        </div>
+
+        {room.recoveryEmails.length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {room.recoveryEmails.map((email) => (
+              <div key={email} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--on-brand)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {email}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeRecoveryEmail(email)}
+                  aria-label={`Remove ${email}`}
+                  style={{ background: 'none', border: 'none', padding: 4, margin: -4, cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <CrossIcon color="var(--on-brand-muted)" size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <input
+            type="email"
+            value={recoveryEmailInput}
+            onChange={(e) => {
+              setRecoveryEmailInput(e.target.value);
+              if (recoveryEmailResult) clearRecoveryEmailResult();
+            }}
+            placeholder="you@example.com"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 14,
+              fontFamily: 'var(--font-body)',
+              color: 'var(--text)',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!recoveryEmailInput.trim()}
+            style={{
+              flexShrink: 0,
+              background: 'var(--on-brand)',
+              color: 'var(--brand-yellow)',
+              border: 'none',
+              borderRadius: 8,
+              padding: '10px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: recoveryEmailInput.trim() ? 'pointer' : 'default',
+              opacity: recoveryEmailInput.trim() ? 1 : 0.5,
+            }}
+          >
+            Email me
+          </button>
+        </div>
+        {recoveryEmailResult && !recoveryEmailResult.ok && (
+          <div style={{ fontSize: 12, color: '#B3261E', marginTop: 8, fontWeight: 600 }}>
+            That doesn't look like a valid email — check it and try again.
+          </div>
+        )}
+        {recoveryEmailResult?.ok && (
+          <div style={{ fontSize: 12, color: 'var(--on-brand)', marginTop: 8, fontWeight: 600 }}>
+            Sent to {recoveryEmailResult.email} — and saved for next time.
           </div>
         )}
       </form>

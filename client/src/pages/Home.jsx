@@ -147,6 +147,12 @@ export default function Home() {
 
         <div style={{ marginTop: 28, maxWidth: 420 }}>
           <JoinByLink onBrand />
+          <Link
+            to="/recover"
+            style={{ display: 'inline-block', marginTop: 14, fontSize: 12.5, fontWeight: 700, color: 'var(--on-brand-muted)' }}
+          >
+            Don't have the link either? Recover by email
+          </Link>
         </div>
       </div>
     );

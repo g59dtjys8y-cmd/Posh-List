@@ -34,6 +34,7 @@ export function RoomProvider({ slug, children }) {
   const [identity, setIdentity] = useState(() => getIdentity(slug));
   const [toasts, setToasts] = useState([]);
   const [aliasResult, setAliasResult] = useState(null);
+  const [recoveryEmailResult, setRecoveryEmailResult] = useState(null);
   const [knownItems, setKnownItems] = useState(null);
   const [shoppingNotice, setShoppingNotice] = useState(null);
   const wsRef = useRef(null);
@@ -129,6 +130,8 @@ export function RoomProvider({ slug, children }) {
           setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4200);
         } else if (msg.type === 'alias_result') {
           setAliasResult(msg);
+        } else if (msg.type === 'recovery_email_result') {
+          setRecoveryEmailResult(msg);
         } else if (msg.type === 'known_items') {
           setKnownItems(msg.items);
         }
@@ -206,6 +209,7 @@ export function RoomProvider({ slug, children }) {
   }, []);
 
   const clearAliasResult = useCallback(() => setAliasResult(null), []);
+  const clearRecoveryEmailResult = useCallback(() => setRecoveryEmailResult(null), []);
 
   const requestKnownItems = useCallback(() => {
     send({ type: 'request_known_items' });
@@ -231,12 +235,32 @@ export function RoomProvider({ slug, children }) {
       activeLayout,
       aliasResult,
       clearAliasResult,
+      recoveryEmailResult,
+      clearRecoveryEmailResult,
       knownItems,
       requestKnownItems,
       shoppingNotice,
       dismissShoppingNotice,
     }),
-    [slug, room, connected, identity, setName, send, toasts, dismissToast, activeLayout, aliasResult, clearAliasResult, knownItems, requestKnownItems, shoppingNotice, dismissShoppingNotice]
+    [
+      slug,
+      room,
+      connected,
+      identity,
+      setName,
+      send,
+      toasts,
+      dismissToast,
+      activeLayout,
+      aliasResult,
+      clearAliasResult,
+      recoveryEmailResult,
+      clearRecoveryEmailResult,
+      knownItems,
+      requestKnownItems,
+      shoppingNotice,
+      dismissShoppingNotice,
+    ]
   );
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;

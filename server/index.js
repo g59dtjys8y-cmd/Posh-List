@@ -31,9 +31,13 @@ import {
   updateLoyaltyCard,
   deleteLoyaltyCard,
   getLoyaltyCardPhoto,
+  addRecoveryEmail,
+  removeRecoveryEmail,
+  getRoomsForEmail,
 } from './db.js';
 import { isValidAisleKey, isValidLayoutOrder, guessAisleKey } from './aisles.js';
 import { notifyItemsAdded } from './push.js';
+import { sendRecoveryLinksEmail } from './email.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
@@ -160,6 +164,13 @@ function parseImageDataUrl(dataUrl) {
   } catch {
     return null;
   }
+}
+
+// Sanity check, not RFC 5322 validation — good enough to catch a typo
+// before it goes to Resend, not a security boundary.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(email) {
+  return typeof email === 'string' && email.length <= 200 && EMAIL_PATTERN.test(email);
 }
 
 function sendJson(res, status, body, extraHeaders = {}) {
@@ -389,6 +400,22 @@ async function handleApi(req, res, url) {
     return res.end(photo.data);
   }
 
+  // The only entry point that starts from just an email with no room
+  // already in hand — for a device that's lost every list it knew about
+  // (see JoinByLink.jsx) and never saved a link anywhere else either.
+  // Always answers the same regardless of whether anything matched, so
+  // this can't be used to probe whether an email is registered to a list.
+  if (pathname === '/api/recover' && req.method === 'POST') {
+    const body = await readJsonBody(req);
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!isValidEmail(email)) return sendJson(res, 400, { error: 'invalid email' });
+    const rooms = getRoomsForEmail(email);
+    if (rooms.length) {
+      sendRecoveryLinksEmail(email, rooms).catch((err) => console.error('recovery email failed', err));
+    }
+    return sendJson(res, 200, { ok: true });
+  }
+
   sendJson(res, 404, { error: 'Not found' });
 }
 
@@ -403,6 +430,11 @@ async function handleApi(req, res, url) {
 const RATE_LIMITS = {
   createRoom: { windowMs: 60 * 60_000, max: 10 },
   api: { windowMs: 60_000, max: 120 },
+  // Tighter than the general bucket: this one's anonymous (no room, no
+  // rooms.length check to make an attacker work for it) and each hit costs
+  // a real email-provider send, so it's the one route worth guarding
+  // against being used as a spam relay or an email-enumeration probe.
+  recover: { windowMs: 60 * 60_000, max: 5 },
 };
 
 // key -> { createRoom: [timestamps], api: [timestamps] }
@@ -458,7 +490,8 @@ const server = http.createServer((req, res) => {
     }
 
     const isCreateRoom = url.pathname === '/api/rooms' && req.method === 'POST';
-    const bucket = isCreateRoom ? 'createRoom' : 'api';
+    const isRecover = url.pathname === '/api/recover' && req.method === 'POST';
+    const bucket = isCreateRoom ? 'createRoom' : isRecover ? 'recover' : 'api';
     const { allowed, retryAfterSeconds } = checkRateLimit(clientKey(req), bucket, RATE_LIMITS[bucket]);
     if (!allowed) {
       sendJson(res, 429, { error: 'Too many requests' }, { 'Retry-After': String(retryAfterSeconds) });
@@ -755,6 +788,33 @@ function handleMessage(ws, slug, msg) {
       // state broadcast once it succeeds (room.alias reflects it).
       ws.send(JSON.stringify({ type: 'alias_result', ok: result.ok, error: result.error || null, alias }));
       if (result.ok) broadcastState(slug);
+      break;
+    }
+
+    case 'add_recovery_email': {
+      const email = String(msg.email || '').trim().toLowerCase();
+      if (!isValidEmail(email)) {
+        ws.send(JSON.stringify({ type: 'recovery_email_result', ok: false, error: 'invalid' }));
+        return;
+      }
+      addRecoveryEmail(slug, email);
+      const room = getRoom(slug);
+      // Fire the "here's your link" email right away — attaching an email
+      // and asking to be sent the link are the same tap from the UI side,
+      // not two separate steps.
+      sendRecoveryLinksEmail(email, [{ slug, name: room.name }]).catch((err) =>
+        console.error('recovery email failed', err)
+      );
+      ws.send(JSON.stringify({ type: 'recovery_email_result', ok: true, email }));
+      broadcastState(slug);
+      break;
+    }
+
+    case 'remove_recovery_email': {
+      const email = String(msg.email || '').trim().toLowerCase();
+      if (!email) return;
+      removeRecoveryEmail(slug, email);
+      broadcastState(slug);
       break;
     }
 

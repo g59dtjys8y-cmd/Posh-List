@@ -143,6 +143,21 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  -- An email someone's optionally attached to a list as a way back in if
+  -- this device ever forgets it (a reinstall, clearing browser data — see
+  -- JoinByLink.jsx). No accounts, no verification: anyone with the list
+  -- open can attach an email, same trust model as setting an alias.
+  -- (room_slug, email) rather than email alone, since more than one
+  -- housemate can each attach their own email to the same list, and one
+  -- email can cover several lists — the recovery flow looks the second
+  -- way up (see getRoomsForEmail), hence the extra index on email alone.
+  CREATE TABLE IF NOT EXISTS room_recovery_emails (
+    room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (room_slug, email)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_layouts_room ON layouts(room_slug);
   CREATE INDEX IF NOT EXISTS idx_items_room ON items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug);
@@ -150,6 +165,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_known_items_room ON known_items(room_slug);
   CREATE INDEX IF NOT EXISTS idx_push_subscriptions_room ON push_subscriptions(room_slug);
   CREATE INDEX IF NOT EXISTS idx_loyalty_cards_room ON loyalty_cards(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_room_recovery_emails_room ON room_recovery_emails(room_slug);
+  CREATE INDEX IF NOT EXISTS idx_room_recovery_emails_email ON room_recovery_emails(email);
 `);
 
 // Lightweight migrations for columns added after a room/item already
@@ -307,6 +324,7 @@ export function getRoom(slug) {
     regulars,
     offerWhoHas: room.offer_who_has || null,
     loyaltyCards: getLoyaltyCards(slug),
+    recoveryEmails: getRecoveryEmails(slug),
   };
 }
 
@@ -355,6 +373,42 @@ export function setAlias(roomSlug, alias) {
     throw err;
   }
   return { ok: true };
+}
+
+/** Idempotent: re-attaching an email already on this room is a no-op, not
+ *  a duplicate row (the caller still sends the "here's your link" email
+ *  again either way — see server/email.js — this only controls storage). */
+export function addRecoveryEmail(slug, email) {
+  db.prepare(
+    `INSERT INTO room_recovery_emails (room_slug, email, created_at) VALUES (?, ?, ?)
+     ON CONFLICT(room_slug, email) DO NOTHING`
+  ).run(slug, email, Date.now());
+}
+
+export function removeRecoveryEmail(slug, email) {
+  db.prepare('DELETE FROM room_recovery_emails WHERE room_slug = ? AND email = ?').run(slug, email);
+}
+
+/** Every email attached to a room, oldest first. */
+export function getRecoveryEmails(slug) {
+  return db
+    .prepare('SELECT email FROM room_recovery_emails WHERE room_slug = ? ORDER BY created_at ASC')
+    .all(slug)
+    .map((r) => r.email);
+}
+
+/** The other direction: every room a given email has been attached to —
+ *  what the standalone /recover flow looks up, since it starts from just
+ *  an email with no room/slug already in hand. */
+export function getRoomsForEmail(email) {
+  return db
+    .prepare(
+      `SELECT r.slug, r.name FROM room_recovery_emails re
+         JOIN rooms r ON r.slug = re.room_slug
+        WHERE re.email = ?
+        ORDER BY re.created_at ASC`
+    )
+    .all(email);
 }
 
 /** Returns false (no-op) if `layoutId` doesn't belong to this room — a
