@@ -13,7 +13,7 @@ import { livePresenceText } from '../lib/presence.js';
 import { categorize, parseNameAndQty } from '../lib/categorize.js';
 import { createRoom } from '../lib/api.js';
 import { didCreateRoom } from '../lib/identity.js';
-import { useNavigate } from '../router.jsx';
+import { useNavigate, Link } from '../router.jsx';
 
 const SEED_SEEN_KEY = (slug) => `posh-list:seed-prompt-seen:${slug}`;
 
@@ -259,13 +259,12 @@ export default function List() {
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
             {' '}&middot;{' '}
-            <button
-              type="button"
-              onClick={() => navigate(`/r/${slug}/loyalty-cards`)}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--text)', fontWeight: 700, cursor: 'pointer' }}
+            <Link
+              to={`/r/${slug}/loyalty-cards`}
+              style={{ font: 'inherit', color: 'var(--text)', fontWeight: 700, textDecoration: 'none' }}
             >
               Loyalty cards
-            </button>
+            </Link>
           </div>
           {doneCount > 0 &&
             (confirmingClear ? (
