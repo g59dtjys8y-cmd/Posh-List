@@ -11,6 +11,11 @@ import { EventEmitter } from 'node:events';
 
 const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
+// Chat-sized JSON payloads never come close to this — it exists purely so a
+// client can't declare (or dribble in) an arbitrarily large frame and have
+// us buffer it forever waiting for the rest to arrive.
+const MAX_FRAME_BYTES = 1024 * 1024;
+
 const OPCODE = {
   CONTINUATION: 0x0,
   TEXT: 0x1,
@@ -101,6 +106,14 @@ class WSConnection extends EventEmitter {
       this._buffer = this._buffer.subarray(frame.totalLength);
       this._handleFrame(frame);
     }
+    // Nothing parsed to completion, and what's sitting there is already
+    // bigger than any frame we'd ever accept — could be a declared length
+    // still buffering (already caught below) or a byte stream that will
+    // never resolve to a valid frame boundary at all. Either way, waiting
+    // for more only grows the buffer further.
+    if (this.readyState === 'open' && this._buffer.length > MAX_FRAME_BYTES) {
+      this._abort(1009, 'Buffered data too large');
+    }
   }
 
   _tryParseFrame(buf) {
@@ -108,6 +121,14 @@ class WSConnection extends EventEmitter {
     const fin = (buf[0] & 0x80) !== 0;
     const opcode = buf[0] & 0x0f;
     const masked = (buf[1] & 0x80) !== 0;
+    // RFC 6455 §5.1: the server MUST close the connection on receiving an
+    // unmasked frame. Nothing that speaks real WebSocket ever sends one to
+    // a server — this is either a bug or something hand-rolled and hostile.
+    if (!masked) {
+      this._abort(1002, 'Unmasked frame');
+      return null;
+    }
+
     let len = buf[1] & 0x7f;
     let offset = 2;
 
@@ -121,23 +142,41 @@ class WSConnection extends EventEmitter {
       offset += 8;
     }
 
-    let maskKey = null;
-    if (masked) {
-      if (buf.length < offset + 4) return null;
-      maskKey = buf.subarray(offset, offset + 4);
-      offset += 4;
+    if (len > MAX_FRAME_BYTES) {
+      this._abort(1009, 'Frame too large');
+      return null;
     }
+
+    if (buf.length < offset + 4) return null;
+    const maskKey = buf.subarray(offset, offset + 4);
+    offset += 4;
 
     if (buf.length < offset + len) return null;
 
-    let payload = buf.subarray(offset, offset + len);
-    if (masked) {
-      const unmasked = Buffer.alloc(len);
-      for (let i = 0; i < len; i++) unmasked[i] = payload[i] ^ maskKey[i % 4];
-      payload = unmasked;
-    }
+    const maskedPayload = buf.subarray(offset, offset + len);
+    const payload = Buffer.alloc(len);
+    for (let i = 0; i < len; i++) payload[i] = maskedPayload[i] ^ maskKey[i % 4];
 
     return { fin, opcode, payload, totalLength: offset + len };
+  }
+
+  /** Forceful teardown for a protocol violation — unlike the graceful
+   *  `close()`, this destroys the socket immediately rather than waiting
+   *  out a close handshake with a client that's already shown it isn't
+   *  playing by the spec. */
+  _abort(code, reason) {
+    if (this.readyState === 'closed') return;
+    this.readyState = 'closed';
+    try {
+      const payload = Buffer.alloc(2 + Buffer.byteLength(reason));
+      payload.writeUInt16BE(code, 0);
+      Buffer.from(reason, 'utf8').copy(payload, 2);
+      this.socket.write(encodeFrame(OPCODE.CLOSE, payload));
+    } catch {
+      /* ignore — socket may already be on its way out */
+    }
+    this.socket.destroy();
+    this.emit('close');
   }
 
   _handleFrame(frame) {

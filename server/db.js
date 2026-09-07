@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { nanoid } from './id.js';
+import { nanoid, nanoidFrom } from './id.js';
 import { AISLE_KEYS, isValidLayoutOrder } from './aisles.js';
 import { personColorForIndex } from './colors.js';
 
@@ -66,13 +66,18 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  -- id is only ever unique *within* a room (see identity.js — a device gets
+  -- a fresh id per room, not one global id), so the primary key is the pair,
+  -- not id alone. A global id PK would reject a second room the instant
+  -- some id happened to already exist in a different room.
   CREATE TABLE IF NOT EXISTS people (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL,
     room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
     name TEXT NOT NULL,
     color TEXT NOT NULL,
     last_seen INTEGER NOT NULL,
-    join_order INTEGER NOT NULL
+    join_order INTEGER NOT NULL,
+    PRIMARY KEY (room_slug, id)
   );
 
   -- A memorable, permanent alternative to the random slug a room is
@@ -123,14 +128,58 @@ for (const migration of [
   }
 }
 
+// A deploy that already has a `people` table from before the composite-key
+// change above still has the old single-column `id` PRIMARY KEY — SQLite
+// can't ALTER a primary key, so rebuild the table under a transaction and
+// copy every row across. PRAGMA table_info's `pk` column is 0 for any
+// column not in the primary key, so room_slug being 0 means this is the
+// old shape; a fresh table (or one already migrated) has it at 1.
+const roomSlugIsPartOfPk = db
+  .prepare("SELECT pk FROM pragma_table_info('people') WHERE name = 'room_slug'")
+  .get();
+if (roomSlugIsPartOfPk && roomSlugIsPartOfPk.pk === 0) {
+  db.exec('BEGIN');
+  try {
+    db.exec(`
+      CREATE TABLE people_new (
+        id TEXT NOT NULL,
+        room_slug TEXT NOT NULL REFERENCES rooms(slug) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        last_seen INTEGER NOT NULL,
+        join_order INTEGER NOT NULL,
+        PRIMARY KEY (room_slug, id)
+      )
+    `);
+    db.exec(
+      'INSERT INTO people_new (id, room_slug, name, color, last_seen, join_order) ' +
+        'SELECT id, room_slug, name, color, last_seen, join_order FROM people'
+    );
+    db.exec('DROP TABLE people');
+    db.exec('ALTER TABLE people_new RENAME TO people');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_people_room ON people(room_slug)');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 // How many times an item has to be added before it's treated as a "usual".
 // Tune after a month of real use.
 const REGULAR_THRESHOLD = 4;
 
+const SLUG_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
 function makeSlug() {
-  // Lowercase alnum, 6 chars — short enough to say out loud, long enough
-  // that guessing someone else's list is impractical.
-  return nanoid(6).toLowerCase().replace(/[^a-z0-9]/g, () => '0');
+  // Lowercase alnum, 10 chars, drawn uniformly — about 52 bits of entropy.
+  // The slug is this app's only secret (no accounts, no login), so it's
+  // worth more than "short enough to say out loud" alone: the old 6-char
+  // nanoid()-then-lowercase scheme collapsed to ~31 bits with a bias
+  // toward letters, from a 62-char alphabet mapped down to 36 after the
+  // fact. Existing rooms keep their old, shorter slugs — this only changes
+  // what a *new* room gets.
+  return nanoidFrom(SLUG_ALPHABET, 10);
 }
 
 export function createRoom(name, layoutOrder) {
@@ -269,8 +318,16 @@ export function setAlias(roomSlug, alias) {
   return { ok: true };
 }
 
+/** Returns false (no-op) if `layoutId` doesn't belong to this room — a
+ *  client can only activate a layout that's actually theirs. Without this,
+ *  a stale or spoofed layoutId (e.g. copied from a different room's link)
+ *  would point `rooms.active_layout_id` at a layout `getRoom` never
+ *  returns, and the client has nothing to render. */
 export function setActiveLayout(slug, layoutId) {
+  const owned = db.prepare('SELECT 1 FROM layouts WHERE id = ? AND room_slug = ?').get(layoutId, slug);
+  if (!owned) return false;
   db.prepare('UPDATE rooms SET active_layout_id = ? WHERE slug = ?').run(layoutId, slug);
+  return true;
 }
 
 export function addLayout(slug, name, order) {
@@ -317,18 +374,56 @@ export function deleteLayout(slug, layoutId) {
   return true;
 }
 
-export function addItem(slug, { name, qty, aisleKey, addedBy, addedColor }) {
+const insertItemStmt = db.prepare(
+  `INSERT INTO items (id, room_slug, name, qty, aisle_key, added_by, added_color, done, done_by, position, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`
+);
+
+function insertItemRow(slug, { name, qty, aisleKey, addedBy, addedColor }, position, now) {
   const id = nanoid();
+  insertItemStmt.run(id, slug, name, qty || 1, aisleKey, addedBy || null, addedColor || null, position, now);
+  learnKnownItem(slug, name, aisleKey, now);
+  return id;
+}
+
+export function addItem(slug, opts) {
   const now = Date.now();
   const maxPos = db
     .prepare('SELECT COALESCE(MAX(position), -1) AS m FROM items WHERE room_slug = ?')
     .get(slug).m;
-  db.prepare(
-    `INSERT INTO items (id, room_slug, name, qty, aisle_key, added_by, added_color, done, done_by, position, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`
-  ).run(id, slug, name, qty || 1, aisleKey, addedBy || null, addedColor || null, maxPos + 1, now);
-  learnKnownItem(slug, name, aisleKey, now);
-  return id;
+  return insertItemRow(slug, opts, maxPos + 1, now);
+}
+
+/**
+ * Adds many items as one transaction — used by every bulk-add path ("paste
+ * a recipe", "add the usuals", the external REST API) instead of each one
+ * looping over `addItem` individually. A loop of separate inserts leaves a
+ * half-added batch permanently on the list if a later item in it throws;
+ * wrapping the whole batch in BEGIN/COMMIT makes it all-or-nothing.
+ * `items` is already-validated `{ name, qty, aisleKey }` objects — callers
+ * differ slightly in how they fill in a missing aisleKey (REST guesses it,
+ * WS trusts the client), so that stays their job, not this one's.
+ */
+export function addItems(slug, items, { addedBy, addedColor } = {}) {
+  if (!items.length) return [];
+  const now = Date.now();
+  const maxPos = db
+    .prepare('SELECT COALESCE(MAX(position), -1) AS m FROM items WHERE room_slug = ?')
+    .get(slug).m;
+
+  const added = [];
+  db.exec('BEGIN');
+  try {
+    items.forEach((item, i) => {
+      const id = insertItemRow(slug, { ...item, addedBy, addedColor }, maxPos + 1 + i, now);
+      added.push({ id, name: item.name, qty: item.qty, aisleKey: item.aisleKey });
+    });
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return added;
 }
 
 /** A short free-text note on an item (e.g. "no substitutions", "the big
@@ -416,13 +511,13 @@ export function addRegularsToList(slug, { addedBy, addedColor } = {}) {
       .all(slug)
       .map((r) => r.name.toLowerCase().trim())
   );
-  const added = [];
-  for (const regular of getRegulars(slug)) {
-    if (live.has(regular.nameKey)) continue;
-    addItem(slug, { name: regular.name, qty: 1, aisleKey: regular.aisleKey, addedBy, addedColor });
-    added.push(regular.name);
-  }
-  return added;
+  const toAdd = getRegulars(slug).filter((r) => !live.has(r.nameKey));
+  const added = addItems(
+    slug,
+    toAdd.map((r) => ({ name: r.name, qty: 1, aisleKey: r.aisleKey })),
+    { addedBy, addedColor }
+  );
+  return added.map((a) => a.name);
 }
 
 /** Force a known item on (1) / off (0) the usuals list, or clear back to auto (null). */

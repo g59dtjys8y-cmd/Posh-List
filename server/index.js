@@ -16,6 +16,7 @@ import {
   updateLayout,
   deleteLayout,
   addItem,
+  addItems,
   setItemDone,
   deleteItem,
   clearDoneItems,
@@ -117,12 +118,13 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-function sendJson(res, status, body) {
+function sendJson(res, status, body, extraHeaders = {}) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(payload),
     ...CORS_HEADERS,
+    ...extraHeaders,
   });
   res.end(payload);
 }
@@ -226,15 +228,16 @@ async function handleApi(req, res, url) {
     const rawItems = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
     const source = typeof body.source === 'string' ? body.source.trim().slice(0, 40) : null;
 
-    const added = [];
-    for (const raw of rawItems) {
-      const name = String(raw?.name || '').trim().slice(0, 120);
-      if (!name) continue;
-      const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
-      const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
-      const itemId = addItem(slug, { name, qty, aisleKey, addedBy: null, addedColor: null });
-      added.push({ id: itemId, name, qty, aisleKey });
-    }
+    const items = rawItems
+      .map((raw) => {
+        const name = String(raw?.name || '').trim().slice(0, 120);
+        if (!name) return null;
+        const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
+        const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
+        return { name, qty, aisleKey };
+      })
+      .filter(Boolean);
+    const added = addItems(slug, items, { addedBy: null, addedColor: null });
 
     if (added.length) {
       broadcastState(slug);
@@ -255,6 +258,58 @@ async function handleApi(req, res, url) {
 }
 
 // ---------------------------------------------------------------------------
+// Rate limiting — a fixed-window hit counter per client key. `POST
+// /api/rooms` gets its own tighter window (it's the one route that costs
+// disk space forever, on a 1GB plan); everything else under /api/ shares a
+// looser general one. Swept periodically so a Map entry from a client that
+// never comes back doesn't sit in memory indefinitely.
+// ---------------------------------------------------------------------------
+
+const RATE_LIMITS = {
+  createRoom: { windowMs: 60 * 60_000, max: 10 },
+  api: { windowMs: 60_000, max: 120 },
+};
+
+// key -> { createRoom: [timestamps], api: [timestamps] }
+const rateBuckets = new Map();
+
+function clientKey(req) {
+  // Render sits behind a proxy — the real client is the first hop in
+  // X-Forwarded-For when present; the raw socket address otherwise (local
+  // dev, or any direct connection).
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket.remoteAddress || 'unknown';
+}
+
+/** Records a hit for `bucket` under `key` and reports whether it's allowed. */
+function checkRateLimit(key, bucket, { windowMs, max }) {
+  const now = Date.now();
+  const buckets = rateBuckets.get(key) || {};
+  const hits = (buckets[bucket] || []).filter((ts) => now - ts < windowMs);
+
+  if (hits.length >= max) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((hits[0] + windowMs - now) / 1000));
+    return { allowed: false, retryAfterSeconds };
+  }
+
+  hits.push(now);
+  buckets[bucket] = hits;
+  rateBuckets.set(key, buckets);
+  return { allowed: true };
+}
+
+const SWEEP_INTERVAL_MS = 10 * 60_000;
+setInterval(() => {
+  const now = Date.now();
+  const maxWindow = Math.max(RATE_LIMITS.createRoom.windowMs, RATE_LIMITS.api.windowMs);
+  for (const [key, buckets] of rateBuckets) {
+    const stillFresh = Object.values(buckets).some((hits) => hits.some((ts) => now - ts < maxWindow));
+    if (!stillFresh) rateBuckets.delete(key);
+  }
+}, SWEEP_INTERVAL_MS).unref();
+
+// ---------------------------------------------------------------------------
 // HTTP server
 // ---------------------------------------------------------------------------
 
@@ -266,6 +321,15 @@ const server = http.createServer((req, res) => {
       res.end();
       return;
     }
+
+    const isCreateRoom = url.pathname === '/api/rooms' && req.method === 'POST';
+    const bucket = isCreateRoom ? 'createRoom' : 'api';
+    const { allowed, retryAfterSeconds } = checkRateLimit(clientKey(req), bucket, RATE_LIMITS[bucket]);
+    if (!allowed) {
+      sendJson(res, 429, { error: 'Too many requests' }, { 'Retry-After': String(retryAfterSeconds) });
+      return;
+    }
+
     handleApi(req, res, url).catch((err) => {
       // eslint-disable-next-line no-console
       console.error('API error', err);
@@ -339,18 +403,37 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    socketsFor(slug).delete(ws);
+    const sockets = socketsFor(slug);
+    sockets.delete(ws);
     if (ws.personId) {
       const counts = personCountsFor(slug);
-      const n = (counts.get(ws.personId) || 1) - 1;
-      counts.set(ws.personId, Math.max(0, n));
+      const remainingCount = (counts.get(ws.personId) || 1) - 1;
+      // Delete rather than set-to-0: leaving a 0 behind means every distinct
+      // personId this room has *ever* seen sits in this Map forever, not
+      // just the ones currently connected.
+      if (remainingCount > 0) counts.set(ws.personId, remainingCount);
+      else counts.delete(ws.personId);
+
       if (ws.shopScreens) {
         const m = shoppingFor(slug);
-        m.set(ws.personId, Math.max(0, (m.get(ws.personId) || 0) - ws.shopScreens));
+        const remainingScreens = Math.max(0, (m.get(ws.personId) || 0) - ws.shopScreens);
+        if (remainingScreens > 0) m.set(ws.personId, remainingScreens);
+        else m.delete(ws.personId);
       }
       touchPerson(slug, ws.personId);
     }
-    broadcastState(slug);
+
+    // Last socket for this room gone — drop its presence bookkeeping
+    // entirely instead of leaving empty Maps/Sets keyed by every slug this
+    // server has ever handled a connection for.
+    if (sockets.size === 0) {
+      roomSockets.delete(slug);
+      roomPersonCounts.delete(slug);
+      roomShopping.delete(slug);
+      lastShoppingBroadcast.delete(slug);
+    } else {
+      broadcastState(slug);
+    }
   });
 });
 
@@ -439,21 +522,19 @@ function handleMessage(ws, slug, msg) {
       // adding a whole recipe's worth of ingredients doesn't flood everyone
       // else's screen with a toast per line.
       const rawItems = Array.isArray(msg.items) ? msg.items.slice(0, 100) : [];
-      const added = [];
-      for (const raw of rawItems) {
-        const name = String(raw?.name || '').trim().slice(0, 120);
-        if (!name) continue;
-        const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
-        const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
-        const itemId = addItem(slug, {
-          name,
-          qty,
-          aisleKey,
-          addedBy: msg.addedBy || ws.personId,
-          addedColor: msg.addedColor,
-        });
-        added.push({ id: itemId, name, qty, aisleKey });
-      }
+      const items = rawItems
+        .map((raw) => {
+          const name = String(raw?.name || '').trim().slice(0, 120);
+          if (!name) return null;
+          const aisleKey = isValidAisleKey(raw?.aisleKey) ? raw.aisleKey : guessAisleKey(name);
+          const qty = Number.isFinite(raw?.qty) && raw.qty > 0 ? Math.floor(raw.qty) : 1;
+          return { name, qty, aisleKey };
+        })
+        .filter(Boolean);
+      const added = addItems(slug, items, {
+        addedBy: msg.addedBy || ws.personId,
+        addedColor: msg.addedColor,
+      });
       if (added.length) {
         broadcastState(slug);
         broadcast(slug, {
@@ -572,8 +653,7 @@ function handleMessage(ws, slug, msg) {
 
     case 'set_active_layout': {
       if (!msg.layoutId) return;
-      setActiveLayout(slug, msg.layoutId);
-      broadcastState(slug);
+      if (setActiveLayout(slug, msg.layoutId)) broadcastState(slug);
       break;
     }
 

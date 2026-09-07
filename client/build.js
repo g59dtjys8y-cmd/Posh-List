@@ -16,8 +16,9 @@ const options = {
   format: 'esm',
   jsx: 'automatic',
   loader: { '.js': 'jsx' },
-  define: { 'process.env.NODE_ENV': JSON.stringify('development') },
-  sourcemap: true,
+  define: { 'process.env.NODE_ENV': JSON.stringify(watch ? 'development' : 'production') },
+  minify: !watch,
+  sourcemap: watch,
   logLevel: 'info',
   absWorkingDir: __dirname,
 };
