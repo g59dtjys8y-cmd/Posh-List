@@ -77,6 +77,11 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div
           style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
             fontSize: 12,
@@ -85,12 +90,13 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
           }}
         >
           QUICK ADD
+          {roomName && <span style={{ fontWeight: 400, letterSpacing: 'normal' }}> &middot; {roomName}</span>}
         </div>
         {editing ? (
           <button
             type="button"
             onClick={() => setEditing(false)}
-            style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
+            style={{ flexShrink: 0, background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}
           >
             Done
           </button>
@@ -99,7 +105,7 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
             type="button"
             onClick={() => setEditing(true)}
             aria-label="Edit quick add"
-            style={{ background: 'none', border: 'none', padding: 0, display: 'flex', cursor: 'pointer' }}
+            style={{ flexShrink: 0, background: 'none', border: 'none', padding: 0, display: 'flex', cursor: 'pointer' }}
           >
             <PencilIcon color="var(--text-muted)" size={14} />
           </button>
