@@ -6,7 +6,6 @@ import { relativeTime } from '../lib/time.js';
 import BadgePrompt from '../components/BadgePrompt.jsx';
 import OfferChecker from '../components/OfferChecker.jsx';
 import NavMenu from '../components/NavMenu.jsx';
-import QuickAdd from '../components/QuickAdd.jsx';
 import JoinByLink from '../components/JoinByLink.jsx';
 import NewListPrompt from '../components/NewListPrompt.jsx';
 
@@ -17,10 +16,8 @@ export default function Home() {
   const [naming, setNaming] = useState(false);
   const [rooms, setRooms] = useState(getVisitedRooms);
 
-  // Fetches one room's live unticked count and folds it into `rooms` —
-  // shared by the mount-time refresh below and by QuickAdd, which needs
-  // the badge next to that room's name to reflect a tap immediately
-  // rather than waiting for the next visit to Home.
+  // Fetches one room's live unticked count and folds it into `rooms`, used
+  // by the mount-time refresh below to fill in each list's badge.
   function refreshRoomCount(slug) {
     fetchRoom(slug)
       .then((room) => {
@@ -200,15 +197,9 @@ export default function Home() {
 
       <BadgePrompt />
 
-      <div style={{ padding: '16px 20px 8px' }}>
+      <div style={{ padding: '16px 20px 16px' }}>
         <OfferChecker slug={rooms[0]?.slug} />
       </div>
-
-      <QuickAdd
-        slug={rooms[0]?.slug}
-        roomName={rooms[0]?.name}
-        onAdded={() => refreshRoomCount(rooms[0]?.slug)}
-      />
 
       <div style={{ flex: 1, padding: '20px 0 0', borderTop: '1px solid var(--hairline)' }}>
         <div

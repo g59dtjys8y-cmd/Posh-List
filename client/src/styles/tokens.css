@@ -86,6 +86,14 @@ a {
   color: inherit;
 }
 
+/* Hides the scrollbar on a horizontally-scrolling row (e.g. QuickAdd) while
+   keeping it scrollable — `scrollbarWidth`/`-ms-overflow-style` cover
+   Firefox/old Edge inline, but WebKit's scrollbar is a pseudo-element only
+   reachable from real CSS. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* The signature shelf-edge ticket: pink & white, notch cut in the left
    edge. Use once per screen for the single most important action/readout. */
 .ticket {

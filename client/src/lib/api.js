@@ -41,13 +41,6 @@ export async function renameRoom(slug, name) {
 }
 
 /**
- * Home's quick-add row has no live WebSocket connection to the room it's
- * adding to, so this goes over REST instead — and unlike a normal add, a
- * repeat tap bumps the existing line's quantity rather than adding a
- * second "Wine" row, which is the whole point of a one-tap shortcut.
- * Broadcasts to anyone with the list open, same as any other add.
- */
-/**
  * The standalone recovery flow (Recover.jsx) — no room open yet, just an
  * email to look up. Always resolves the same way regardless of whether
  * anything matched (the server deliberately doesn't say either way, so
@@ -63,12 +56,3 @@ export async function requestRecoveryEmail(email) {
   return res.json();
 }
 
-export async function quickAddItem(slug, name, source) {
-  const res = await fetch(`/api/rooms/${slug}/quick-add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, source }),
-  });
-  if (!res.ok) throw new Error('Could not add item');
-  return res.json();
-}

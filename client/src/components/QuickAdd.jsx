@@ -1,55 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
-import { quickAddItem } from '../lib/api.js';
-import { getIdentity } from '../lib/identity.js';
+import { useState } from 'react';
 import { getQuickAddItems, saveQuickAddItems } from '../lib/quickAdd.js';
 import { CrossIcon, PencilIcon, PlusIcon } from './Icons.jsx';
 
-const FEEDBACK_TIMEOUT_MS = 2200;
-
 /**
- * One-tap "add this to today's list" shortcuts on Home — a device-level
- * editable shortlist (not tied to any room), always adding to whichever
- * list is most recently visited. That's the same "current list" every
- * other Home-level control (NavMenu, BottomNav) already assumes, so a
- * single device with several lists doesn't need to pick one here too.
+ * One-tap "add this to the list" shortcuts on the list page — a device-
+ * level editable shortlist (not tied to any room). Purely presentational:
+ * tapping a chip just calls `onAdd(name)` and the caller's own add path
+ * (the same one AddBar uses) takes it from there, so a quick-added item
+ * behaves identically to a typed one — same optimistic update, same
+ * categorisation, same attribution.
  */
-export default function QuickAdd({ slug, roomName, onAdded }) {
+export default function QuickAdd({ onAdd }) {
   const [items, setItems] = useState(getQuickAddItems);
   const [editing, setEditing] = useState(false);
   const [newText, setNewText] = useState('');
-  const [pending, setPending] = useState(null); // item name currently being added
-  const [feedback, setFeedback] = useState(null);
-  const feedbackTimer = useRef(null);
-
-  useEffect(() => () => clearTimeout(feedbackTimer.current), []);
-
-  function showFeedback(text) {
-    clearTimeout(feedbackTimer.current);
-    setFeedback(text);
-    feedbackTimer.current = setTimeout(() => setFeedback(null), FEEDBACK_TIMEOUT_MS);
-  }
-
-  async function handleAdd(name) {
-    if (pending) return;
-    setPending(name);
-    try {
-      // Attribute to this device's known name for that room when there is
-      // one, so the toast anyone else sees reads like a person added it
-      // rather than a generic source label.
-      const source = getIdentity(slug)?.name || 'Quick add';
-      const result = await quickAddItem(slug, name, source);
-      showFeedback(
-        result.incremented
-          ? `${name} is now ×${result.qty} on ${roomName || 'the list'}`
-          : `Added ${name} to ${roomName || 'the list'}`
-      );
-      onAdded?.();
-    } catch {
-      showFeedback(`Couldn't add ${name} — try again`);
-    } finally {
-      setPending(null);
-    }
-  }
 
   function removeItem(name) {
     const next = items.filter((i) => i !== name);
@@ -70,18 +34,11 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
     setNewText('');
   }
 
-  if (!slug) return null;
-
   return (
-    <div style={{ padding: '20px 20px 4px', borderTop: '1px solid var(--hairline)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+    <div style={{ padding: '12px 0 4px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '0 20px' }}>
         <div
           style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
             fontSize: 12,
@@ -90,7 +47,6 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
           }}
         >
           QUICK ADD
-          {roomName && <span style={{ fontWeight: 400, letterSpacing: 'normal' }}> &middot; {roomName}</span>}
         </div>
         {editing ? (
           <button
@@ -112,7 +68,28 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
         )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div
+        className={editing ? undefined : 'no-scrollbar'}
+        style={
+          editing
+            ? { display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 20px' }
+            : {
+                display: 'flex',
+                flexWrap: 'nowrap',
+                gap: 8,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                padding: '0 20px',
+                // Right-edge padding wide enough that when the row overflows,
+                // the next chip sits half-cut-off rather than flush with the
+                // edge — that partial chip is what reads as "scroll me"
+                // instead of "that's the whole list".
+                paddingRight: 48,
+              }
+        }
+      >
         {items.map((name) =>
           editing ? (
             <span
@@ -154,9 +131,9 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
             <button
               key={name}
               type="button"
-              onClick={() => handleAdd(name)}
-              disabled={pending === name}
+              onClick={() => onAdd(name)}
               style={{
+                flexShrink: 0,
                 padding: '10px 16px',
                 borderRadius: 20,
                 background: 'var(--field-bg)',
@@ -165,7 +142,7 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
                 fontWeight: 600,
                 color: 'var(--text)',
                 cursor: 'pointer',
-                opacity: pending === name ? 0.55 : 1,
+                whiteSpace: 'nowrap',
               }}
             >
               + {name}
@@ -212,8 +189,6 @@ export default function QuickAdd({ slug, roomName, onAdded }) {
           </form>
         )}
       </div>
-
-      {feedback && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>{feedback}</div>}
     </div>
   );
 }

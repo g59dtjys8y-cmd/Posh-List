@@ -5,6 +5,7 @@ import NavMenu from '../components/NavMenu.jsx';
 import NameGate from '../components/NameGate.jsx';
 import OfferBanner from '../components/OfferBanner.jsx';
 import AddBar from '../components/AddBar.jsx';
+import QuickAdd from '../components/QuickAdd.jsx';
 import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
 import BadgePrompt from '../components/BadgePrompt.jsx';
@@ -424,7 +425,10 @@ export default function List() {
         )}
       </div>
 
-      <AddBar ref={addBarRef} onAdd={handleAdd} variant="ticket" />
+      <div style={{ flexShrink: 0, background: '#fff' }}>
+        <QuickAdd onAdd={handleAdd} />
+        <AddBar ref={addBarRef} onAdd={handleAdd} variant="ticket" />
+      </div>
     </div>
   );
 }
