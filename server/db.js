@@ -271,6 +271,73 @@ export function roomExists(slug) {
   return !!db.prepare('SELECT 1 FROM rooms WHERE slug = ?').get(slug);
 }
 
+// Every table that carries room_slug as a foreign key into rooms(slug) —
+// none of them declare ON UPDATE CASCADE, so moving a room to a new slug
+// means updating each of these by hand rather than just rewriting
+// rooms.slug in place.
+const ROOM_CHILD_TABLES = [
+  'layouts',
+  'items',
+  'people',
+  'known_items',
+  'push_subscriptions',
+  'loyalty_cards',
+  'room_recovery_emails',
+];
+
+/**
+ * There's no accounts, so there's no way to individually revoke one
+ * person's access to a room — the slug (or alias) they have is all that's
+ * ever needed to get back in, for anyone. The only real way to remove
+ * someone is to move the whole room to a new slug and simply not give
+ * them the new one: every other member's live connection gets migrated
+ * automatically (see the `remove_person` WS handler), but the removed
+ * person's socket is closed with nothing telling it where to go.
+ *
+ * Everything about the room carries over to the new slug except: the
+ * removed person's own roster row and push subscription (both deleted,
+ * not migrated — carrying the subscription over would mean their device
+ * keeps getting notified about, and a tap-through link straight back
+ * into, a room they were just removed from), and any alias (deleted
+ * outright) — a leaked or guessable alias would just reopen the same
+ * door on the new slug, defeating the entire point of resetting it.
+ * Returns the new slug, or null if `oldSlug` doesn't exist.
+ */
+export function removePersonAndResetLink(oldSlug, removedPersonId) {
+  const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(oldSlug);
+  if (!room) return null;
+
+  let newSlug = makeSlug();
+  while (db.prepare('SELECT 1 FROM rooms WHERE slug = ?').get(newSlug)) {
+    newSlug = makeSlug();
+  }
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(
+      'INSERT INTO rooms (slug, name, active_layout_id, created_at, offer_who_has) VALUES (?, ?, ?, ?, ?)'
+    ).run(newSlug, room.name, room.active_layout_id, room.created_at, room.offer_who_has);
+
+    db.prepare('DELETE FROM people WHERE room_slug = ? AND id = ?').run(oldSlug, removedPersonId);
+    db.prepare('DELETE FROM push_subscriptions WHERE room_slug = ? AND person_id = ?').run(
+      oldSlug,
+      removedPersonId
+    );
+
+    for (const table of ROOM_CHILD_TABLES) {
+      db.prepare(`UPDATE ${table} SET room_slug = ? WHERE room_slug = ?`).run(newSlug, oldSlug);
+    }
+    db.prepare('DELETE FROM room_aliases WHERE room_slug = ?').run(oldSlug);
+    db.prepare('DELETE FROM rooms WHERE slug = ?').run(oldSlug);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  return newSlug;
+}
+
 export function getRoom(slug) {
   const room = db.prepare('SELECT * FROM rooms WHERE slug = ?').get(slug);
   if (!room) return null;
@@ -627,6 +694,21 @@ export function incrementOrAddItem(slug, { name, aisleKey, addedBy, addedColor }
 export function setItemNote(slug, itemId, note) {
   db.prepare('UPDATE items SET note = ? WHERE id = ? AND room_slug = ?').run(
     note || null,
+    itemId,
+    slug
+  );
+}
+
+/** Corrects an item already on the list (e.g. "2 pints of milk" -> "4") —
+ *  deliberately does NOT touch known_items the way addItem does. A rename
+ *  is a correction of something already recorded, not a fresh add: bumping
+ *  times_added here would let fixing a typo quietly count toward making it
+ *  a "usual", and the original add already logged the (now-superseded)
+ *  name once. */
+export function setItemName(slug, itemId, name, aisleKey) {
+  db.prepare('UPDATE items SET name = ?, aisle_key = ? WHERE id = ? AND room_slug = ?').run(
+    name,
+    aisleKey,
     itemId,
     slug
   );

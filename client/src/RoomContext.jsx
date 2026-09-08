@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { fetchRoom } from './lib/api.js';
 import { subscribeToPush } from './lib/push.js';
+import { useNavigate } from './router.jsx';
 import {
   getIdentity,
   saveIdentity,
@@ -29,8 +30,10 @@ function wsUrlFor(slug, identity) {
 }
 
 export function RoomProvider({ slug, children }) {
+  const navigate = useNavigate();
   const [room, setRoom] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [roomGone, setRoomGone] = useState(false);
   const [identity, setIdentity] = useState(() => getIdentity(slug));
   const [toasts, setToasts] = useState([]);
   const [aliasResult, setAliasResult] = useState(null);
@@ -84,6 +87,13 @@ export function RoomProvider({ slug, children }) {
 
   useEffect(() => {
     let cancelled = false;
+    // Set the instant a link_reset navigates this device away — the
+    // server closes this same socket right after sending that message,
+    // and relying on the resulting close event arriving after React has
+    // already unmounted this effect (via the navigate-triggered slug
+    // change) would make correctness depend on event-loop timing rather
+    // than being guaranteed. This flag makes it explicit instead.
+    let migratedAway = false;
 
     function connect() {
       if (cancelled) return;
@@ -134,13 +144,43 @@ export function RoomProvider({ slug, children }) {
           setRecoveryEmailResult(msg);
         } else if (msg.type === 'known_items') {
           setKnownItems(msg.items);
+        } else if (msg.type === 'link_reset') {
+          // Someone was removed from this room, which moves the whole
+          // thing to a new slug (see removePersonAndResetLink) — everyone
+          // else's live connection gets told the new address directly, so
+          // this device doesn't need to be told twice: carry this device's
+          // identity and its "Your lists" entry over to the new slug
+          // before navigating, so landing there doesn't re-ask for a name
+          // or vanish from the list of lists.
+          migratedAway = true;
+          const current = identityRef.current;
+          if (current) saveIdentity(msg.newSlug, current);
+          const rooms = getVisitedRooms();
+          const idx = rooms.findIndex((r) => r.slug === slug);
+          if (idx !== -1) {
+            const next = [...rooms];
+            next[idx] = { ...next[idx], slug: msg.newSlug };
+            saveVisitedRooms(next);
+          }
+          navigate(`/r/${msg.newSlug}`, { replace: true });
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         clearInterval(heartbeatTimer.current);
         setConnected(false);
-        if (cancelled) return;
+        if (cancelled || migratedAway) return;
+        // 4001: this device was removed and told nothing about where the
+        // list moved to. 4004: this slug plain doesn't resolve any more —
+        // either the removed device retrying the old link, or any other
+        // device coming back to a link that moved while it was closed and
+        // never got the direct link_reset above. Neither will ever
+        // succeed by retrying, so stop and say so instead of "Reconnecting…"
+        // forever.
+        if (event.code === 4001 || event.code === 4004) {
+          setRoomGone(true);
+          return;
+        }
         const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 8000);
         reconnectAttempt.current += 1;
         reconnectTimer.current = setTimeout(connect, delay);
@@ -227,6 +267,7 @@ export function RoomProvider({ slug, children }) {
       slug,
       room,
       connected,
+      roomGone,
       identity,
       setName,
       send,
@@ -246,6 +287,7 @@ export function RoomProvider({ slug, children }) {
       slug,
       room,
       connected,
+      roomGone,
       identity,
       setName,
       send,

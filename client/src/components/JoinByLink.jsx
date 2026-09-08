@@ -25,6 +25,22 @@ export default function JoinByLink({ onBrand = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // A tap-triggered clipboard read — this is exactly the moment someone's
+  // most likely to have the link on their clipboard (just tapped it in
+  // Messages/WhatsApp before saving to the Home Screen), and typing a
+  // 20-odd-character slug by hand off a screenshot is not a real option.
+  // Needs a real user gesture to succeed without a permission prompt, so
+  // this can't run automatically on mount — only from a tap.
+  async function handlePaste() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) setValue(text.trim());
+    } catch {
+      // Clipboard read denied or unsupported — the field is still there
+      // to paste into manually (long-press > Paste), so no error shown.
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     const id = extractRoomId(value);
@@ -71,6 +87,23 @@ export default function JoinByLink({ onBrand = false }) {
             fontFamily: 'var(--font-body)',
           }}
         />
+        <button
+          type="button"
+          onClick={handlePaste}
+          style={{
+            flexShrink: 0,
+            padding: '0 14px',
+            borderRadius: 10,
+            border: onBrand ? 'none' : '1px solid var(--hairline-strong)',
+            background: onBrand ? 'rgba(255,255,255,0.55)' : 'var(--field-bg)',
+            color: onBrand ? 'var(--on-brand)' : 'var(--text)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Paste
+        </button>
         <button
           type="submit"
           disabled={busy || !value.trim()}

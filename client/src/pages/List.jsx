@@ -14,12 +14,54 @@ import { categorize, parseNameAndQty } from '../lib/categorize.js';
 import { useNavigate, Link } from '../router.jsx';
 
 export default function List() {
-  const { slug, room, connected, identity, setName, send, activeLayout, toasts, dismissToast, shoppingNotice, dismissShoppingNotice } = useRoom();
+  const { slug, room, connected, roomGone, identity, setName, send, activeLayout, toasts, dismissToast, shoppingNotice, dismissShoppingNotice } = useRoom();
   const navigate = useNavigate();
   const addBarRef = useRef(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+
+  // The room's link stopped working outright — either this device was
+  // removed (see Share.jsx), or it's a stale link that moved while this
+  // device wasn't connected to hear about it directly. Retrying can't ever
+  // succeed, so say so instead of "Reconnecting…" forever.
+  if (roomGone) {
+    return (
+      <div
+        className="app-page"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          paddingTop: 32,
+          paddingLeft: 24,
+          paddingRight: 24,
+          // Longhand — see Share.jsx for why: `padding` shorthand would
+          // set padding-bottom too and clobber .app-page's own reserved
+          // space for the fixed BottomNav rendered below this page.
+          paddingBottom: 'calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 32px)',
+        }}
+      >
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--text)' }}>
+          This list isn't here any more
+        </div>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 10, maxWidth: 320, lineHeight: 1.5 }}>
+          The link you used no longer works. If someone shares this list with you, ask them for the
+          current link — or if you'd attached an email to it before, you can recover it that way.
+        </div>
+        <Link to="/recover" style={{ marginTop: 20, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+          Recover by email
+        </Link>
+        {/* Not "/" — the launcher there redirects to the most-recently-visited
+            room, which is this same dead one, bouncing straight back here. */}
+        <Link to="/home" style={{ marginTop: 14, fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>
+          Back to Posh List
+        </Link>
+      </div>
+    );
+  }
 
   if (!room) {
     return (
@@ -78,6 +120,13 @@ export default function List() {
 
   function handleSetNote(item, note) {
     send({ type: 'set_item_note', itemId: item.id, note });
+  }
+
+  // Re-categorizing on rename is deliberate: correcting a name across
+  // aisles (e.g. "juice" -> "orange juice") should move the item into its
+  // new aisle group, same as it would if typed that way from scratch.
+  function handleRename(item, newName) {
+    send({ type: 'rename_item', itemId: item.id, name: newName, aisleKey: categorize(newName) });
   }
 
   function handleClearDone() {
@@ -361,7 +410,14 @@ export default function List() {
                 {AISLE_BY_KEY[group.aisleKey]?.label.toUpperCase()}
               </div>
               {group.items.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={handleToggle} onDelete={handleDelete} onSetNote={handleSetNote} />
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  onSetNote={handleSetNote}
+                  onRename={handleRename}
+                />
               ))}
             </div>
           ))

@@ -17,6 +17,7 @@ export default function Share() {
   const [copied, setCopied] = useState(false);
   const [aliasInput, setAliasInput] = useState('');
   const [recoveryEmailInput, setRecoveryEmailInput] = useState('');
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
 
   useEffect(() => clearAliasResult, [clearAliasResult]);
   useEffect(() => clearRecoveryEmailResult, [clearRecoveryEmailResult]);
@@ -55,6 +56,11 @@ export default function Share() {
     send({ type: 'remove_recovery_email', email });
   }
 
+  function removePerson(personId) {
+    send({ type: 'remove_person', personId });
+    setConfirmRemoveId(null);
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(url);
@@ -84,7 +90,14 @@ export default function Share() {
         background: 'var(--brand-yellow)',
         display: 'flex',
         flexDirection: 'column',
-        padding: '22px 20px 28px',
+        paddingTop: 22,
+        paddingLeft: 20,
+        paddingRight: 20,
+        // Longhand, not the `padding` shorthand: that would set
+        // padding-bottom too and clobber .app-page's own rule reserving
+        // space for the fixed BottomNav, trapping this page's last content
+        // (the people list, now with Remove buttons) behind it.
+        paddingBottom: 'calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 28px)',
       }}
     >
       <button
@@ -323,32 +336,89 @@ export default function Share() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {room.people.map((p) => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  background: p.color,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  flexShrink: 0,
-                }}
-              >
-                {initials(p.name)}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--on-brand)' }}>
-                  {p.id === identity?.id ? 'You' : p.name}
+            <div key={p.id}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: p.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    flexShrink: 0,
+                  }}
+                >
+                  {initials(p.name)}
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--on-brand-muted)' }}>
-                  {p.connected ? 'Online now' : `Last seen ${relativeTime(p.lastSeen)}`}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--on-brand)' }}>
+                    {p.id === identity?.id ? 'You' : p.name}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--on-brand-muted)' }}>
+                    {p.connected ? 'Online now' : `Last seen ${relativeTime(p.lastSeen)}`}
+                  </div>
                 </div>
+                {p.id !== identity?.id && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemoveId((id) => (id === p.id ? null : p.id))}
+                    aria-label={`Remove ${p.name}`}
+                    style={{ background: 'none', border: 'none', padding: 6, margin: -6, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    <CrossIcon color="var(--on-brand-muted)" size={13} />
+                  </button>
+                )}
               </div>
+
+              {confirmRemoveId === p.id && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    marginLeft: 44,
+                    background: 'rgba(255,255,255,0.55)',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--on-brand)' }}>Remove {p.name}?</div>
+                  <div style={{ fontSize: 12, color: 'var(--on-brand-muted)', marginTop: 4, lineHeight: 1.45 }}>
+                    There's no accounts here, so the only way to actually remove someone is to move
+                    this list to a new link. Everyone online right now moves automatically — anyone
+                    not online (even people you want to keep) will need the new link sent again.
+                    {' '}{p.name} won't get it.
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemoveId(null)}
+                      style={{ background: 'none', border: 'none', padding: '8px 0', fontSize: 13, fontWeight: 700, color: 'var(--on-brand-muted)', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removePerson(p.id)}
+                      style={{
+                        background: 'var(--on-brand)',
+                        color: 'var(--brand-yellow)',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remove {p.name}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

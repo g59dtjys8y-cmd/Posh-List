@@ -11,6 +11,7 @@ import {
   renameRoom,
   setOfferWhoHas,
   setItemNote,
+  setItemName,
   setActiveLayout,
   addLayout,
   updateLayout,
@@ -34,6 +35,7 @@ import {
   addRecoveryEmail,
   removeRecoveryEmail,
   getRoomsForEmail,
+  removePersonAndResetLink,
 } from './db.js';
 import { isValidAisleKey, isValidLayoutOrder, guessAisleKey } from './aisles.js';
 import { notifyItemsAdded } from './push.js';
@@ -653,6 +655,19 @@ function handleMessage(ws, slug, msg) {
       break;
     }
 
+    // A correction to something already on the list — not a new add, so
+    // this only ever broadcasts state, never broadcastItemsAdded. Nobody
+    // needs a push notification because you fixed your own typo.
+    case 'rename_item': {
+      if (!msg.itemId) return;
+      const name = String(msg.name || '').trim().slice(0, 120);
+      if (!name) return;
+      const aisleKey = isValidAisleKey(msg.aisleKey) ? msg.aisleKey : 'cupboard';
+      setItemName(slug, msg.itemId, name, aisleKey);
+      broadcastState(slug);
+      break;
+    }
+
     case 'delete_item': {
       if (!msg.itemId) return;
       deleteItem(slug, msg.itemId);
@@ -788,6 +803,39 @@ function handleMessage(ws, slug, msg) {
       // state broadcast once it succeeds (room.alias reflects it).
       ws.send(JSON.stringify({ type: 'alias_result', ok: result.ok, error: result.error || null, alias }));
       if (result.ok) broadcastState(slug);
+      break;
+    }
+
+    // No accounts means no way to revoke just one person's access — the
+    // slug (or alias) they have works for anyone. The only real fix is
+    // moving the whole room to a new slug and not telling the removed
+    // person what it is. Every other open connection to this room gets
+    // told where it moved and closed so it reconnects there; the removed
+    // person's connection (if they even have one open right now) is just
+    // closed, with nothing pointing anywhere.
+    case 'remove_person': {
+      const targetPersonId = String(msg.personId || '').trim();
+      if (!targetPersonId) return;
+      const newSlug = removePersonAndResetLink(slug, targetPersonId);
+      if (!newSlug) return;
+
+      const oldSockets = [...socketsFor(slug)];
+      for (const clientWs of oldSockets) {
+        if (clientWs.personId === targetPersonId) {
+          clientWs.close(4001, 'Removed from this list');
+        } else {
+          try {
+            clientWs.send(JSON.stringify({ type: 'link_reset', newSlug }));
+          } catch {
+            // best-effort — if the send fails the close below still happens
+          }
+          clientWs.close(4002, 'This list moved to a new link');
+        }
+      }
+      roomSockets.delete(slug);
+      roomPersonCounts.delete(slug);
+      roomShopping.delete(slug);
+      lastShoppingBroadcast.delete(slug);
       break;
     }
 
