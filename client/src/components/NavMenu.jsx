@@ -3,23 +3,25 @@ import { useRouter } from '../router.jsx';
 import { useRoomOptional } from '../RoomContext.jsx';
 import { createRoom } from '../lib/api.js';
 import { MenuIcon } from './Icons.jsx';
+import NewListPrompt from './NewListPrompt.jsx';
 
 export default function NavMenu({ slug, roomLabel }) {
   const [open, setOpen] = useState(false);
+  const [naming, setNaming] = useState(false);
   const [starting, setStarting] = useState(false);
   const ref = useRef(null);
   const { path, navigate } = useRouter();
   const activeLayout = useRoomOptional()?.activeLayout;
 
-  async function startOwnList() {
+  async function startOwnList(name) {
     if (starting) return;
     setStarting(true);
     try {
-      const { slug: newSlug } = await createRoom('Shopping list', {
+      const { slug: newSlug } = await createRoom(name, {
         layoutOrder: activeLayout?.order,
         from: slug,
       });
-      setOpen(false);
+      setNaming(false);
       navigate(`/r/${newSlug}`);
     } catch {
       setStarting(false);
@@ -36,7 +38,7 @@ export default function NavMenu({ slug, roomLabel }) {
   }, [open]);
 
   const items = [
-    { label: 'Home', to: '/' },
+    { label: 'Home', to: '/home' },
     // Only a device with a list to reach builds this group at all — no six
     // dead entries pointing nowhere useful for a brand-new visitor.
     ...(slug
@@ -51,7 +53,13 @@ export default function NavMenu({ slug, roomLabel }) {
         ]
       : []),
     { label: 'Manage lists', to: '/lists' },
-    { label: starting ? 'Starting…' : '+ Start your own list', onClick: startOwnList },
+    {
+      label: '+ Start your own list',
+      onClick: () => {
+        setOpen(false);
+        setNaming(true);
+      },
+    },
     // No `to` matches the page you're already on, so it drops itself from
     // the list instead of needing a special case per page (Home included).
   ].filter((item) => item.to !== path);
@@ -139,6 +147,14 @@ export default function NavMenu({ slug, roomLabel }) {
             </div>
           ))}
         </div>
+      )}
+      {naming && (
+        <NewListPrompt
+          placeholder="e.g. Kitchen, Weekly shop"
+          busy={starting}
+          onCreate={startOwnList}
+          onClose={() => setNaming(false)}
+        />
       )}
     </div>
   );

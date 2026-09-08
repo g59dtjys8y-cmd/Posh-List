@@ -6,6 +6,7 @@ import { relativeTime } from '../lib/time.js';
 import { CrossIcon } from '../components/Icons.jsx';
 import NavMenu from '../components/NavMenu.jsx';
 import JoinByLink from '../components/JoinByLink.jsx';
+import NewListPrompt from '../components/NewListPrompt.jsx';
 
 const UNDO_TIMEOUT_MS = 6000;
 
@@ -23,6 +24,7 @@ const UNDO_TIMEOUT_MS = 6000;
 export default function MyLists() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [naming, setNaming] = useState(false);
   const [rooms, setRooms] = useState(getVisitedRooms);
   const [undo, setUndo] = useState(null); // { name, previousRooms } | null
   const undoTimer = useRef(null);
@@ -56,10 +58,10 @@ export default function MyLists() {
     }
   }
 
-  async function startNew() {
+  async function startNew(name) {
     setBusy(true);
     try {
-      const { slug } = await createRoom('Shopping list');
+      const { slug } = await createRoom(name);
       navigate(`/r/${slug}`);
     } catch {
       setBusy(false);
@@ -279,14 +281,26 @@ export default function MyLists() {
       <div style={{ flexShrink: 0, padding: '12px 16px 16px', background: '#fff', borderTop: '1px solid var(--hairline)' }}>
         <button
           type="button"
-          onClick={startNew}
+          onClick={() => setNaming(true)}
           disabled={busy}
           className="ticket"
           style={{ justifyContent: 'center', fontSize: 16, width: '100%' }}
         >
-          {busy ? 'Starting…' : '+ Start a new list'}
+          + Start a new list
         </button>
       </div>
+
+      {naming && (
+        <NewListPrompt
+          placeholder="e.g. Kitchen, Weekly shop"
+          busy={busy}
+          onCreate={(name) => {
+            setNaming(false);
+            startNew(name);
+          }}
+          onClose={() => setNaming(false)}
+        />
+      )}
     </div>
   );
 }

@@ -8,11 +8,13 @@ import OfferChecker from '../components/OfferChecker.jsx';
 import NavMenu from '../components/NavMenu.jsx';
 import QuickAdd from '../components/QuickAdd.jsx';
 import JoinByLink from '../components/JoinByLink.jsx';
+import NewListPrompt from '../components/NewListPrompt.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [naming, setNaming] = useState(false);
   const [rooms, setRooms] = useState(getVisitedRooms);
 
   // Fetches one room's live unticked count and folds it into `rooms` —
@@ -64,19 +66,21 @@ export default function Home() {
 
   async function start(e) {
     e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
     setBusy(true);
     try {
-      const { slug } = await createRoom(name.trim() || 'Shopping list');
+      const { slug } = await createRoom(trimmed);
       navigate(`/r/${slug}`);
     } catch {
       setBusy(false);
     }
   }
 
-  async function startNew() {
+  async function startNew(newName) {
     setBusy(true);
     try {
-      const { slug } = await createRoom('Shopping list');
+      const { slug } = await createRoom(newName);
       navigate(`/r/${slug}`);
     } catch {
       setBusy(false);
@@ -140,7 +144,12 @@ export default function Home() {
               fontFamily: 'var(--font-body)',
             }}
           />
-          <button type="submit" disabled={busy} className="ticket" style={{ justifyContent: 'center', fontSize: 16, width: '100%' }}>
+          <button
+            type="submit"
+            disabled={busy || !name.trim()}
+            className="ticket"
+            style={{ justifyContent: 'center', fontSize: 16, width: '100%' }}
+          >
             {busy ? 'Starting…' : 'Start the list'}
           </button>
         </form>
@@ -262,14 +271,26 @@ export default function Home() {
       <div style={{ flexShrink: 0, padding: '12px 16px 16px', background: '#fff', borderTop: '1px solid var(--hairline)' }}>
         <button
           type="button"
-          onClick={startNew}
+          onClick={() => setNaming(true)}
           disabled={busy}
           className="ticket"
           style={{ justifyContent: 'center', fontSize: 16, width: '100%' }}
         >
-          {busy ? 'Starting…' : '+ Start a new list'}
+          + Start a new list
         </button>
       </div>
+
+      {naming && (
+        <NewListPrompt
+          placeholder="e.g. Kitchen, Weekly shop"
+          busy={busy}
+          onCreate={(newName) => {
+            setNaming(false);
+            startNew(newName);
+          }}
+          onClose={() => setNaming(false)}
+        />
+      )}
     </div>
   );
 }
