@@ -16,7 +16,6 @@ import {
   addLayout,
   updateLayout,
   deleteLayout,
-  addItem,
   addItems,
   incrementOrAddItem,
   setItemDone,
@@ -625,16 +624,24 @@ function handleMessage(ws, slug, msg) {
       if (!name) return;
       const aisleKey = isValidAisleKey(msg.aisleKey) ? msg.aisleKey : 'cupboard';
       const qty = Number.isFinite(msg.qty) && msg.qty > 0 ? Math.floor(msg.qty) : 1;
-      const itemId = addItem(slug, {
+      // Same name already live on the list (not done) bumps its quantity
+      // instead of adding a second row — this is what makes tapping a
+      // Quick Add chip three times read "Milk ×3" rather than three
+      // separate "Milk" rows, and applies just as much to a typed repeat.
+      const result = incrementOrAddItem(slug, {
         name,
-        qty,
         aisleKey,
         addedBy: msg.addedBy || ws.personId,
         addedColor: msg.addedColor,
+        qty,
       });
       broadcastItemsAdded(slug, {
-        item: { id: itemId, name, qty, aisleKey },
-        names: [name],
+        item: { id: result.id, name: result.name, qty: result.qty, aisleKey: result.aisleKey },
+        // result.name, not the just-typed `name` — a differently-cased
+        // repeat ("WINE" onto an existing "Wine") merges into the existing
+        // line, so the notification should read the list's own name for
+        // it, not the raw text this particular tap happened to send.
+        names: [result.name],
         addedByName: msg.addedByName || null,
         fromPersonId: ws.personId,
       });

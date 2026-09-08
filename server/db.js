@@ -661,31 +661,34 @@ export function addItems(slug, items, { addedBy, addedColor } = {}) {
 }
 
 /**
- * Quick-add's one-tap behaviour: bump an already-on-the-list quantity
- * instead of adding a second line for the same thing — tapping "Milk"
- * three times should read "Milk ×3", not three separate "Milk" rows. Only
- * matches a *live* item (not done) by name — a ticked-off "Milk" from last
- * week doesn't count as still being on the list, so this rightly starts a
- * fresh line rather than un-ticking someone else's finished shop.
+ * One-tap (and typed-duplicate) behaviour: bump an already-on-the-list
+ * quantity instead of adding a second line for the same thing — tapping
+ * "Milk" three times, or typing it again, should read "Milk ×3", not three
+ * separate "Milk" rows. `qty` is the amount to add this time (1 for a
+ * Quick Add tap; whatever AddBar's stepper or "milk x2" shorthand asked
+ * for). Only matches a *live* item (not done) by name — a ticked-off
+ * "Milk" from last week doesn't count as still being on the list, so this
+ * rightly starts a fresh line rather than un-ticking someone else's
+ * finished shop.
  */
-export function incrementOrAddItem(slug, { name, aisleKey, addedBy, addedColor }) {
+export function incrementOrAddItem(slug, { name, aisleKey, addedBy, addedColor, qty = 1 }) {
   const key = name.toLowerCase().trim();
   const existing = db
     .prepare("SELECT id, name, qty, aisle_key FROM items WHERE room_slug = ? AND done = 0 AND lower(trim(name)) = ?")
     .get(slug, key);
 
   if (existing) {
-    const qty = existing.qty + 1;
-    db.prepare('UPDATE items SET qty = ? WHERE id = ?').run(qty, existing.id);
+    const newQty = existing.qty + qty;
+    db.prepare('UPDATE items SET qty = ? WHERE id = ?').run(newQty, existing.id);
     // Bumping a differently-cased tap ("WINE" while "wine" is on the list)
     // still just increments the existing line — the display name it
     // already has stays put rather than getting silently retyped.
     learnKnownItem(slug, existing.name, existing.aisle_key, Date.now());
-    return { id: existing.id, name: existing.name, qty, aisleKey: existing.aisle_key, incremented: true };
+    return { id: existing.id, name: existing.name, qty: newQty, aisleKey: existing.aisle_key, incremented: true };
   }
 
-  const id = addItem(slug, { name, qty: 1, aisleKey, addedBy, addedColor });
-  return { id, name, qty: 1, aisleKey, incremented: false };
+  const id = addItem(slug, { name, qty, aisleKey, addedBy, addedColor });
+  return { id, name, qty, aisleKey, incremented: false };
 }
 
 /** A short free-text note on an item (e.g. "no substitutions", "the big
