@@ -1,5 +1,7 @@
-import { useRouter, matchPath } from './router.jsx';
+import { useEffect } from 'react';
+import { useRouter, useNavigate, matchPath } from './router.jsx';
 import { RoomProvider } from './RoomContext.jsx';
+import { getVisitedRooms } from './lib/identity.js';
 import BottomNav from './components/BottomNav.jsx';
 import Home from './pages/Home.jsx';
 import MyLists from './pages/MyLists.jsx';
@@ -13,8 +15,22 @@ import Layouts from './pages/Layouts.jsx';
 import EditLayout from './pages/EditLayout.jsx';
 import PasteRecipe from './pages/PasteRecipe.jsx';
 
+// An installed PWA launches at "/" — this sends it straight to the list
+// instead of making that the most expensive tap in the app (one more, in a
+// shop, one-handed). A device with no list yet has nowhere to land but
+// Home's own first-run branch, so it goes there instead.
+function Launcher() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const room = getVisitedRooms()[0];
+    navigate(room ? `/r/${room.slug}` : '/home', { replace: true });
+  }, [navigate]);
+  return null;
+}
+
 const ROUTES = [
-  { pattern: '/', render: () => <Home /> },
+  { pattern: '/', render: () => <Launcher /> },
+  { pattern: '/home', render: () => <Home /> },
   { pattern: '/lists', render: () => <MyLists /> },
   { pattern: '/recover', render: () => <Recover /> },
   { pattern: '/r/:slug', render: (p) => <List key={p.slug} /> },

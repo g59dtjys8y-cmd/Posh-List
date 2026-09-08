@@ -18,7 +18,7 @@ export default function BottomNav() {
   const roomSlug = useRoomOptional()?.slug || getVisitedRooms()[0]?.slug || null;
 
   const tabs = [
-    { label: 'Home', to: '/', Icon: HomeIcon },
+    { label: 'Home', to: '/home', Icon: HomeIcon },
     { label: 'List', to: roomSlug ? `/r/${roomSlug}` : null, Icon: ListIcon },
     { label: 'Your lists', to: '/lists', Icon: StackIcon },
   ];
