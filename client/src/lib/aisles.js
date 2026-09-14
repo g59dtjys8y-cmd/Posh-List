@@ -14,6 +14,12 @@ export const AISLES = [
 export const AISLE_BY_KEY = Object.fromEntries(AISLES.map((a) => [a.key, a]));
 export const AISLE_KEYS = AISLES.map((a) => a.key);
 
+// An `other` list (packing, jobs to do) has no meaningful aisle for
+// anything on it — items still need *some* aisleKey column value, so use
+// the catch-all rather than running them through categorize(). Named so
+// call sites read as "no meaningful aisle", not a random choice of aisle.
+export const NO_AISLE = 'cupboard';
+
 export function aisleLabel(key) {
   return AISLE_BY_KEY[key]?.label || key;
 }

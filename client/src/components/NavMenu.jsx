@@ -11,15 +11,24 @@ export default function NavMenu({ slug, roomLabel }) {
   const [starting, setStarting] = useState(false);
   const ref = useRef(null);
   const { path, navigate } = useRouter();
-  const activeLayout = useRoomOptional()?.activeLayout;
+  const roomCtx = useRoomOptional();
+  const activeLayout = roomCtx?.activeLayout;
+  // NavMenu also renders room-less (Home, Your lists) and from MyLists with
+  // no RoomProvider at all (slug={rooms[0]?.slug}, no room context) — kind
+  // is unknown in both cases, so default to shopping rather than hiding
+  // entries a legitimate shopping list's menu should still show.
+  const isOther = roomCtx?.room?.kind === 'other';
 
-  async function startOwnList(name) {
+  async function startOwnList(name, kind) {
     if (starting) return;
     setStarting(true);
     try {
       const { slug: newSlug } = await createRoom(name, {
-        layoutOrder: activeLayout?.order,
+        // Seeding a walking order only makes sense for a shopping list — an
+        // `other` list's UI never uses aisles at all.
+        layoutOrder: kind === 'shopping' ? activeLayout?.order : undefined,
         from: slug,
+        kind,
       });
       setNaming(false);
       navigate(`/r/${newSlug}`);
@@ -45,11 +54,17 @@ export default function NavMenu({ slug, roomLabel }) {
       ? [
           { label: 'Open the list', to: `/r/${slug}`, heading: roomLabel },
           { label: 'Share the list', to: `/r/${slug}/share` },
-          { label: 'In the shop', to: `/r/${slug}/shop` },
-          { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
-          { label: 'Your usuals', to: `/r/${slug}/usuals` },
-          { label: 'Loyalty cards', to: `/r/${slug}/loyalty-cards` },
-          { label: 'Layouts', to: `/r/${slug}/layouts` },
+          // Shopping-only: an `other` list has no in-shop mode, recipes,
+          // usuals, loyalty cards or aisle layouts to speak of.
+          ...(isOther
+            ? []
+            : [
+                { label: 'In the shop', to: `/r/${slug}/shop` },
+                { label: 'Add from a recipe', to: `/r/${slug}/paste-recipe` },
+                { label: 'Your usuals', to: `/r/${slug}/usuals` },
+                { label: 'Loyalty cards', to: `/r/${slug}/loyalty-cards` },
+                { label: 'Layouts', to: `/r/${slug}/layouts` },
+              ]),
         ]
       : []),
     { label: 'Manage lists', to: '/lists' },

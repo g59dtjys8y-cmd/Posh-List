@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from '../router.jsx';
 import { createRoom, renameRoom } from '../lib/api.js';
-import { getVisitedRooms, saveVisitedRooms } from '../lib/identity.js';
+import { getVisitedRooms, saveVisitedRooms, roomKindOf } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import { CrossIcon } from '../components/Icons.jsx';
 import NavMenu from '../components/NavMenu.jsx';
@@ -58,10 +58,10 @@ export default function MyLists() {
     }
   }
 
-  async function startNew(name) {
+  async function startNew(name, kind) {
     setBusy(true);
     try {
-      const { slug } = await createRoom(name);
+      const { slug } = await createRoom(name, { kind });
       navigate(`/r/${slug}`);
     } catch {
       setBusy(false);
@@ -181,17 +181,36 @@ export default function MyLists() {
                     textDecoration: 'none',
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: 'var(--text)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {r.name}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 600,
+                        color: 'var(--text)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {r.name}
+                    </span>
+                    {roomKindOf(r) === 'other' && (
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.06em',
+                          color: 'var(--text-muted)',
+                          background: 'var(--field-bg)',
+                          border: '1px solid var(--hairline-strong)',
+                          borderRadius: 4,
+                          padding: '2px 6px',
+                        }}
+                      >
+                        OTHER
+                      </span>
+                    )}
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
                     {relativeTime(r.lastVisitedAt)}
@@ -294,9 +313,9 @@ export default function MyLists() {
         <NewListPrompt
           placeholder="e.g. Kitchen, Weekly shop"
           busy={busy}
-          onCreate={(name) => {
+          onCreate={(name, kind) => {
             setNaming(false);
-            startNew(name);
+            startNew(name, kind);
           }}
           onClose={() => setNaming(false)}
         />

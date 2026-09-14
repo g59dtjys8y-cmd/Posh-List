@@ -74,10 +74,10 @@ export default function Home() {
     }
   }
 
-  async function startNew(newName) {
+  async function startNew(newName, kind) {
     setBusy(true);
     try {
-      const { slug } = await createRoom(newName);
+      const { slug } = await createRoom(newName, { kind });
       navigate(`/r/${slug}`);
     } catch {
       setBusy(false);
@@ -275,9 +275,9 @@ export default function Home() {
         <NewListPrompt
           placeholder="e.g. Kitchen, Weekly shop"
           busy={busy}
-          onCreate={(newName) => {
+          onCreate={(newName, kind) => {
             setNaming(false);
-            startNew(newName);
+            startNew(newName, kind);
           }}
           onClose={() => setNaming(false)}
         />

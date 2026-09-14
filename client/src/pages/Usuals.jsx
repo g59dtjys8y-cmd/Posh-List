@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon } from '../components/Icons.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
@@ -13,6 +13,7 @@ import { AISLE_BY_KEY } from '../lib/aisles.js';
 export default function Usuals() {
   const { slug, room, knownItems, requestKnownItems, send } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
 
   useEffect(() => {
     requestKnownItems();

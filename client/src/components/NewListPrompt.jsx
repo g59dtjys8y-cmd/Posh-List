@@ -1,20 +1,23 @@
 import { useState } from 'react';
 
+const OTHER_PLACEHOLDER = 'e.g. Caravan packing list';
+
 /**
- * Asks for a name before creating a list. Two rooms both silently called
- * "Shopping list" is what made a stray room indistinguishable from the real
- * one (see MyLists, Home and NavMenu's "start your own list" entries) — so
- * every entry point that creates a room routes through this instead of
- * defaulting one in behind the scenes.
+ * Asks for a name (and, since list kinds, a type) before creating a list.
+ * Two rooms both silently called "Shopping list" is what made a stray room
+ * indistinguishable from the real one (see MyLists, Home and NavMenu's
+ * "start your own list" entries) — so every entry point that creates a room
+ * routes through this instead of defaulting one in behind the scenes.
  */
 export default function NewListPrompt({ placeholder, busy, onCreate, onClose }) {
   const [name, setName] = useState('');
+  const [kind, setKind] = useState('shopping');
 
   function submit(e) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    onCreate(trimmed);
+    onCreate(trimmed, kind);
   }
 
   return (
@@ -45,11 +48,39 @@ export default function NewListPrompt({ placeholder, busy, onCreate, onClose }) 
         <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
           Name this list
         </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[
+            { value: 'shopping', label: 'Shopping list' },
+            { value: 'other', label: 'Other list' },
+          ].map((option) => {
+            const selected = kind === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setKind(option.value)}
+                style={{
+                  flex: 1,
+                  background: selected ? 'var(--brand-yellow)' : 'none',
+                  border: `1px solid ${selected ? 'var(--brand-yellow)' : 'var(--hairline-strong)'}`,
+                  borderRadius: 10,
+                  padding: '10px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: selected ? 'var(--on-brand)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
         <input
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={placeholder}
+          placeholder={kind === 'other' ? OTHER_PLACEHOLDER : placeholder}
           maxLength={80}
           style={{
             background: 'var(--field-bg)',
@@ -62,6 +93,11 @@ export default function NewListPrompt({ placeholder, busy, onCreate, onClose }) 
             fontFamily: 'var(--font-body)',
           }}
         />
+        {kind === 'other' && (
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: -4 }}>
+            Items on this list won't be learned as your usuals.
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             type="button"
