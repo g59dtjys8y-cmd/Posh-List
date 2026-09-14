@@ -48,15 +48,22 @@ export function getVisitedRooms() {
   }
 }
 
-/** Record (or refresh) this device having opened `slug`, named `name`. */
-export function rememberVisitedRoom(slug, name) {
+/** Record (or refresh) this device having opened `slug`, named `name`, of `kind`. */
+export function rememberVisitedRoom(slug, name, kind) {
   try {
     const rooms = getVisitedRooms().filter((r) => r.slug !== slug);
-    rooms.unshift({ slug, name: name || 'Shopping list', lastVisitedAt: Date.now() });
+    rooms.unshift({ slug, name: name || 'Shopping list', kind: kind || 'shopping', lastVisitedAt: Date.now() });
     localStorage.setItem(ROOMS_KEY, JSON.stringify(rooms.slice(0, MAX_REMEMBERED_ROOMS)));
   } catch {
     // localStorage unavailable — just won't be remembered next time.
   }
+}
+
+/** A visited-room entry's kind — entries saved before list kinds existed
+ *  have no `kind` at all, so every read site should go through this rather
+ *  than scattering `|| 'shopping'` fallbacks of its own. */
+export function roomKindOf(entry) {
+  return entry?.kind || 'shopping';
 }
 
 /** Overwrites the whole visited-rooms array — for quick-remove's undo,

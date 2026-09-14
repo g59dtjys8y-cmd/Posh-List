@@ -59,7 +59,7 @@ export function RoomProvider({ slug, children }) {
       // (home screen icon, bare domain, an old browser bookmark) can
       // return to it, and so the "My lists" menu can show every list this
       // device has been part of, not just the very last one.
-      if (r) rememberVisitedRoom(slug, r.name);
+      if (r) rememberVisitedRoom(slug, r.name, r.kind);
     });
     return () => {
       cancelled = true;
@@ -323,4 +323,21 @@ export function useRoom() {
  */
 export function useRoomOptional() {
   return useContext(RoomContext);
+}
+
+/**
+ * Bounces a shopping-only page (InShop, Usuals, Layouts, EditLayout,
+ * PasteRecipe, LoyaltyCards) back to the plain list when the room turns out
+ * to be an `other` list — reachable by URL even with its NavMenu entry
+ * gone (a bookmark, a shared link, a back button). Guarded on `room` having
+ * actually arrived: `room` is null while loading and its kind is unknown
+ * then, so redirecting before that would bounce a legitimate shopping list
+ * off its own page during the first render.
+ */
+export function useShoppingOnly() {
+  const { slug, room } = useRoom();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (room && room.kind === 'other') navigate(`/r/${slug}`, { replace: true });
+  }, [room, slug, navigate]);
 }

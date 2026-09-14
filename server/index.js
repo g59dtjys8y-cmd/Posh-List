@@ -6,6 +6,8 @@ import { WebSocketServer } from './wsServer.js';
 import {
   createRoom,
   getRoom,
+  ROOM_KINDS,
+  getRoomKind,
   resolveSlug,
   setAlias,
   renameRoom,
@@ -242,7 +244,10 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/rooms' && req.method === 'POST') {
     const body = await readJsonBody(req);
     const layoutOrder = isValidLayoutOrder(body.layoutOrder) ? body.layoutOrder : null;
-    const room = createRoom(String(body.name || 'Shopping list').slice(0, 80), layoutOrder);
+    // createRoom's own normalisation already covers a junk value, but don't
+    // pass an unvalidated client string around any further than we have to.
+    const kind = ROOM_KINDS.includes(body.kind) ? body.kind : 'shopping';
+    const room = createRoom(String(body.name || 'Shopping list').slice(0, 80), layoutOrder, kind);
     if (body.from) {
       // Conversion signal only — no FK, the source room isn't touched.
       console.log(`room ${room.slug} started from ${String(body.from).slice(0, 40)}`);
@@ -689,6 +694,10 @@ function handleMessage(ws, slug, msg) {
     }
 
     case 'add_usuals': {
+      // Nothing was ever learned for an `other` list, so getRegulars would
+      // already come back empty — this is cheap insurance against a stale
+      // tab or hand-crafted message, not load-bearing.
+      if (getRoomKind(slug) !== 'shopping') return;
       const added = addRegularsToList(slug, {
         addedBy: msg.addedBy || ws.personId,
         addedColor: msg.addedColor,
@@ -739,6 +748,7 @@ function handleMessage(ws, slug, msg) {
     }
 
     case 'set_regular': {
+      if (getRoomKind(slug) !== 'shopping') return;
       if (typeof msg.nameKey !== 'string' || !msg.nameKey.trim()) return;
       const value = msg.value === 1 || msg.value === 0 ? msg.value : null;
       setRegularOverride(slug, msg.nameKey, value);
@@ -748,11 +758,13 @@ function handleMessage(ws, slug, msg) {
     }
 
     case 'request_known_items': {
+      if (getRoomKind(slug) !== 'shopping') return;
       ws.send(JSON.stringify({ type: 'known_items', items: getKnownItems(slug) }));
       break;
     }
 
     case 'enter_shop': {
+      if (getRoomKind(slug) !== 'shopping') return;
       if (!ws.personId) return;
       const m = shoppingFor(slug);
       const noneShoppingBefore = [...m.values()].every((n) => !n);
@@ -777,6 +789,7 @@ function handleMessage(ws, slug, msg) {
     }
 
     case 'leave_shop': {
+      if (getRoomKind(slug) !== 'shopping') return;
       if (!ws.personId) return;
       const m = shoppingFor(slug);
       m.set(ws.personId, Math.max(0, (m.get(ws.personId) || 0) - 1));

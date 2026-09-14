@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon, PencilIcon, CrossIcon, PlusIcon } from '../components/Icons.jsx';
 import QRCode from '../components/QRCode.jsx';
@@ -17,6 +17,7 @@ import { exportCards, parseBackup } from '../lib/loyaltyBackup.js';
 export default function LoyaltyCards() {
   const { slug, room, send, connected } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
   const [openId, setOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null); // null = not editing, 'new' = adding
   const [label, setLabel] = useState('');

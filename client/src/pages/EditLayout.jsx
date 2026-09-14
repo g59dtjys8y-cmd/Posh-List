@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon, DragHandleIcon } from '../components/Icons.jsx';
 import { AISLE_BY_KEY, AISLE_KEYS } from '../lib/aisles.js';
@@ -64,6 +64,7 @@ function useReorder(order, setOrder) {
 export default function EditLayout({ layoutId }) {
   const { slug, room, send } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
   const isNew = layoutId === 'new';
 
   const existing = !isNew && room ? room.aisleLayouts.find((l) => l.id === layoutId) : null;

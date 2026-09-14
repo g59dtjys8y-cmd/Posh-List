@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
@@ -12,6 +12,7 @@ const recapAutoKey = (slug) => `posh-list:recap-auto:${slug}`;
 export default function InShop() {
   const { slug, room, connected, identity, send, toasts, dismissToast, activeLayout } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
   const [recapOpen, setRecapOpen] = useState(false);
 
   // Stamp when this shop session started (first time the screen is opened

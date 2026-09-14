@@ -9,7 +9,7 @@ import QuickAdd from '../components/QuickAdd.jsx';
 import ItemRow from '../components/ItemRow.jsx';
 import Toast from '../components/Toast.jsx';
 import BadgePrompt from '../components/BadgePrompt.jsx';
-import { AISLE_BY_KEY } from '../lib/aisles.js';
+import { AISLE_BY_KEY, NO_AISLE } from '../lib/aisles.js';
 import { livePresenceText } from '../lib/presence.js';
 import { categorize, parseNameAndQty } from '../lib/categorize.js';
 import { useNavigate, Link } from '../router.jsx';
@@ -70,13 +70,23 @@ export default function List() {
     );
   }
 
+  // An `other` list (packing, jobs to do) is flat and ordered, with no
+  // aisles at all — see CLAUDE.md's "list kinds" notes for why.
+  const isShopping = room.kind !== 'other';
   const order = activeLayout?.order || [];
-  const groups = order
-    .map((aisleKey) => ({
-      aisleKey,
-      items: room.items.filter((i) => i.aisleKey === aisleKey),
-    }))
-    .filter((g) => g.items.length > 0);
+  // Grouping by the active layout's aisle order silently drops any item
+  // whose aisleKey isn't in that order — fine for shopping (every aisleKey
+  // is always one of the seven fixed ones), but exactly what would happen
+  // to every item on an `other` list, so that branch skips grouping
+  // entirely and just renders `room.items` as-is, in stored position order.
+  const groups = isShopping
+    ? order
+        .map((aisleKey) => ({
+          aisleKey,
+          items: room.items.filter((i) => i.aisleKey === aisleKey),
+        }))
+        .filter((g) => g.items.length > 0)
+    : [];
 
   const totalItems = room.items.length;
   const aisleCount = groups.length;
@@ -104,7 +114,7 @@ export default function List() {
       type: 'add_item',
       name,
       qty,
-      aisleKey: categorize(name),
+      aisleKey: isShopping ? categorize(name) : NO_AISLE,
       addedBy: identity?.id,
       addedColor: identity?.color,
       addedByName: identity?.name,
@@ -127,7 +137,12 @@ export default function List() {
   // aisles (e.g. "juice" -> "orange juice") should move the item into its
   // new aisle group, same as it would if typed that way from scratch.
   function handleRename(item, newName) {
-    send({ type: 'rename_item', itemId: item.id, name: newName, aisleKey: categorize(newName) });
+    send({
+      type: 'rename_item',
+      itemId: item.id,
+      name: newName,
+      aisleKey: isShopping ? categorize(newName) : NO_AISLE,
+    });
   }
 
   function handleClearDone() {
@@ -265,14 +280,23 @@ export default function List() {
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, minHeight: 18 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot; {totalItems} {totalItems === 1 ? 'item' : 'items'}
-            {' '}&middot;{' '}
-            <Link
-              to={`/r/${slug}/loyalty-cards`}
-              style={{ font: 'inherit', color: 'var(--text)', fontWeight: 700, textDecoration: 'none' }}
-            >
-              Loyalty cards
-            </Link>
+            {isShopping && (
+              <>
+                {aisleCount} {aisleCount === 1 ? 'aisle' : 'aisles'} &middot;{' '}
+              </>
+            )}
+            {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            {isShopping && (
+              <>
+                {' '}&middot;{' '}
+                <Link
+                  to={`/r/${slug}/loyalty-cards`}
+                  style={{ font: 'inherit', color: 'var(--text)', fontWeight: 700, textDecoration: 'none' }}
+                >
+                  Loyalty cards
+                </Link>
+              </>
+            )}
           </div>
           {doneCount > 0 &&
             (confirmingClear ? (
@@ -325,9 +349,9 @@ export default function List() {
         </div>
       )}
 
-      <OfferBanner />
+      {isShopping && <OfferBanner />}
 
-      {shoppingNotice && (
+      {isShopping && shoppingNotice && (
         <div
           style={{
             display: 'flex',
@@ -363,7 +387,7 @@ export default function List() {
         </div>
       )}
 
-      {totalItems > 0 && usualsToAdd > 0 && (
+      {isShopping && totalItems > 0 && usualsToAdd > 0 && (
         <div style={{ padding: '10px 20px 2px', flexShrink: 0 }}>
           <button
             type="button"
@@ -379,7 +403,7 @@ export default function List() {
       <div style={{ flex: 1 }}>
         {totalItems === 0 ? (
           <div style={{ padding: '44px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-            {usualsToAdd > 0 ? (
+            {isShopping && usualsToAdd > 0 ? (
               <>
                 <div style={{ marginBottom: 16 }}>Fresh list. Want to start from your usuals?</div>
                 <button
@@ -395,7 +419,7 @@ export default function List() {
               'Nothing on the list yet — add the first thing'
             )}
           </div>
-        ) : (
+        ) : isShopping ? (
           groups.map((group) => (
             <div key={group.aisleKey}>
               <div
@@ -422,11 +446,24 @@ export default function List() {
               ))}
             </div>
           ))
+        ) : (
+          // Flat, ungrouped run in stored position order — no aisle
+          // headings, since an `other` list has no aisles at all.
+          room.items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+              onSetNote={handleSetNote}
+              onRename={handleRename}
+            />
+          ))
         )}
       </div>
 
       <div style={{ flexShrink: 0, background: '#fff' }}>
-        <QuickAdd onAdd={handleAdd} />
+        {isShopping && <QuickAdd onAdd={handleAdd} />}
         <AddBar ref={addBarRef} onAdd={handleAdd} variant="ticket" />
       </div>
     </div>

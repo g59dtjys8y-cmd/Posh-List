@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon, CrossIcon } from '../components/Icons.jsx';
 import { parseIngredientsFromText } from '../lib/parseRecipeText.js';
@@ -19,6 +19,7 @@ function makeRow(name) {
 export default function PasteRecipe() {
   const { slug, identity, send } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
   const [step, setStep] = useState('paste'); // 'paste' | 'review'
   const [text, setText] = useState('');
   const [rows, setRows] = useState([]);

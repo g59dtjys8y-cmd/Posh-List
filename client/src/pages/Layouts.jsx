@@ -1,4 +1,4 @@
-import { useRoom } from '../RoomContext.jsx';
+import { useRoom, useShoppingOnly } from '../RoomContext.jsx';
 import { useNavigate } from '../router.jsx';
 import { BackIcon, CheckIcon, PlusIcon } from '../components/Icons.jsx';
 import { AISLE_BY_KEY } from '../lib/aisles.js';
@@ -6,6 +6,7 @@ import { AISLE_BY_KEY } from '../lib/aisles.js';
 export default function Layouts() {
   const { slug, room, send } = useRoom();
   const navigate = useNavigate();
+  useShoppingOnly();
 
   if (!room) return null;
 

@@ -40,7 +40,8 @@ db.exec(`
     slug TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     active_layout_id TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'shopping'
   );
 
   CREATE TABLE IF NOT EXISTS layouts (
@@ -175,6 +176,7 @@ db.exec(`
 for (const migration of [
   'ALTER TABLE rooms ADD COLUMN offer_who_has TEXT',
   'ALTER TABLE items ADD COLUMN note TEXT',
+  "ALTER TABLE rooms ADD COLUMN kind TEXT NOT NULL DEFAULT 'shopping'",
 ]) {
   try {
     db.exec(migration);
@@ -224,6 +226,16 @@ if (roomSlugIsPartOfPk && roomSlugIsPartOfPk.pk === 0) {
 // Tune after a month of real use.
 const REGULAR_THRESHOLD = 4;
 
+// A room is either a real shopping list (aisles, usuals, in-shop mode, the
+// works) or a flat "other" list (packing, jobs to do — no aisles, no
+// learning). Anything not in this list degrades to 'shopping' rather than
+// throwing, since an unrecognised kind should never 500 a client.
+export const ROOM_KINDS = ['shopping', 'other'];
+
+function normaliseKind(kind) {
+  return ROOM_KINDS.includes(kind) ? kind : 'shopping';
+}
+
 const SLUG_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
 function makeSlug() {
@@ -237,7 +249,8 @@ function makeSlug() {
   return nanoidFrom(SLUG_ALPHABET, 10);
 }
 
-export function createRoom(name, layoutOrder) {
+export function createRoom(name, layoutOrder, kind) {
+  const roomKind = normaliseKind(kind);
   let slug = makeSlug();
   // Practically never collides at 6 chars, but guard anyway.
   while (db.prepare('SELECT 1 FROM rooms WHERE slug = ?').get(slug)) {
@@ -247,7 +260,7 @@ export function createRoom(name, layoutOrder) {
   const defaultLayoutId = nanoid();
 
   const insertRoom = db.prepare(
-    'INSERT INTO rooms (slug, name, active_layout_id, created_at) VALUES (?, ?, ?, ?)'
+    'INSERT INTO rooms (slug, name, active_layout_id, created_at, kind) VALUES (?, ?, ?, ?, ?)'
   );
   const insertLayout = db.prepare(
     'INSERT INTO layouts (id, room_slug, name, order_json, position, created_at) VALUES (?, ?, ?, ?, ?, ?)'
@@ -255,7 +268,11 @@ export function createRoom(name, layoutOrder) {
 
   db.exec('BEGIN');
   try {
-    insertRoom.run(slug, name || 'Shopping list', defaultLayoutId, now);
+    const fallbackName = roomKind === 'other' ? 'My list' : 'Shopping list';
+    insertRoom.run(slug, name || fallbackName, defaultLayoutId, now, roomKind);
+    // An `other` room still gets a default layout row — it's unused by its
+    // UI, but leaving it in place means the room can be flipped to
+    // `shopping` later (see Phase 6) without needing to repair anything.
     const order = isValidLayoutOrder(layoutOrder) ? layoutOrder : AISLE_KEYS;
     insertLayout.run(defaultLayoutId, slug, 'Default order', JSON.stringify(order), 0, now);
     db.exec('COMMIT');
@@ -269,6 +286,14 @@ export function createRoom(name, layoutOrder) {
 
 export function roomExists(slug) {
   return !!db.prepare('SELECT 1 FROM rooms WHERE slug = ?').get(slug);
+}
+
+/** Cheap kind-only lookup for callers (e.g. server/index.js's WS guards on
+ *  shopping-only messages) that don't need a whole getRoom() just to branch
+ *  on this one column. */
+export function getRoomKind(slug) {
+  const row = db.prepare('SELECT kind FROM rooms WHERE slug = ?').get(slug);
+  return row ? normaliseKind(row.kind) : 'shopping';
 }
 
 // Every table that carries room_slug as a foreign key into rooms(slug) —
@@ -315,8 +340,8 @@ export function removePersonAndResetLink(oldSlug, removedPersonId) {
   db.exec('BEGIN');
   try {
     db.prepare(
-      'INSERT INTO rooms (slug, name, active_layout_id, created_at, offer_who_has) VALUES (?, ?, ?, ?, ?)'
-    ).run(newSlug, room.name, room.active_layout_id, room.created_at, room.offer_who_has);
+      'INSERT INTO rooms (slug, name, active_layout_id, created_at, offer_who_has, kind) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(newSlug, room.name, room.active_layout_id, room.created_at, room.offer_who_has, room.kind);
 
     db.prepare('DELETE FROM people WHERE room_slug = ? AND id = ?').run(oldSlug, removedPersonId);
     db.prepare('DELETE FROM push_subscriptions WHERE room_slug = ? AND person_id = ?').run(
@@ -384,6 +409,9 @@ export function getRoom(slug) {
     slug: room.slug,
     alias: aliasRow?.alias || null,
     name: room.name,
+    // Rows written before this deploy still read back with the column's
+    // default (so this is mostly belt and braces), but stay defensive.
+    kind: room.kind || 'shopping',
     activeLayoutId: room.active_layout_id,
     aisleLayouts: layouts,
     items,
@@ -729,6 +757,14 @@ export function setItemName(slug, itemId, name, aisleKey) {
 function learnKnownItem(slug, name, aisleKey, now) {
   const key = name.toLowerCase().trim();
   if (!key) return;
+  // The single choke point every add path funnels through (addItem,
+  // addItems, incrementOrAddItem's increment branch, and the external REST
+  // route) — gating here instead of in each of those callers means an
+  // `other` list (packing, jobs to do) can never accidentally learn a
+  // "usual", however the item got added. Don't "fix" this by moving the
+  // gate up a level: incrementOrAddItem calls this directly, so anything
+  // higher up would miss that branch.
+  if (getRoomKind(slug) !== 'shopping') return;
   db.prepare(
     `INSERT INTO known_items (room_slug, name_key, display_name, aisle_key, times_added, last_added_at)
      VALUES (?, ?, ?, ?, 1, ?)
