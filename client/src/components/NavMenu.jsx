@@ -5,7 +5,7 @@ import { createRoom } from '../lib/api.js';
 import { MenuIcon } from './Icons.jsx';
 import NewListPrompt from './NewListPrompt.jsx';
 
-export default function NavMenu({ slug, roomLabel }) {
+export default function NavMenu({ slug, roomLabel, roomKind }) {
   const [open, setOpen] = useState(false);
   const [naming, setNaming] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -13,11 +13,14 @@ export default function NavMenu({ slug, roomLabel }) {
   const { path, navigate } = useRouter();
   const roomCtx = useRoomOptional();
   const activeLayout = roomCtx?.activeLayout;
-  // NavMenu also renders room-less (Home, Your lists) and from MyLists with
-  // no RoomProvider at all (slug={rooms[0]?.slug}, no room context) — kind
-  // is unknown in both cases, so default to shopping rather than hiding
-  // entries a legitimate shopping list's menu should still show.
-  const isOther = roomCtx?.room?.kind === 'other';
+  // NavMenu also renders room-less (Home, Your lists), where there's no
+  // RoomProvider above it to read a kind from. Those call sites hold the
+  // full visited-room entry themselves, though, so they pass its kind
+  // through as `roomKind` rather than it being genuinely unknown — the
+  // live context wins when a provider exists (List.jsx), `roomKind` is
+  // the fallback, and only a brand-new visitor with no rooms at all (so
+  // neither is available) defaults to shopping.
+  const isOther = (roomCtx?.room?.kind ?? roomKind ?? 'shopping') === 'other';
 
   async function startOwnList(name, kind) {
     if (starting) return;
