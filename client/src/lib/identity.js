@@ -66,6 +66,23 @@ export function roomKindOf(entry) {
   return entry?.kind || 'shopping';
 }
 
+/** Which visited room a shop-context destination (the loyalty cards link,
+ *  the offers card) should point at — never `rooms[0]` unchecked, since
+ *  that may be an `other` list with no loyalty cards or offers to speak
+ *  of (the ambiguity behind the earlier loyalty-card data-loss incident).
+ *  Prefers the most recently visited shopping room that's known to hold
+ *  at least one loyalty card (`cardCount`, folded onto an entry once a
+ *  caller has fetched it) over one that's merely more recent — landing on
+ *  a correct-but-empty loyalty page looks just as broken as the old
+ *  redirect. Falls back to the most recently visited shopping room while
+ *  card counts haven't loaded yet (`cardCount` undefined), and to
+ *  `undefined` if the device has no shopping list at all — callers must
+ *  let that mean "don't render", never fall further back to rooms[0]. */
+export function resolveShoppingRoom(rooms) {
+  const shoppingRooms = rooms.filter((r) => roomKindOf(r) === 'shopping');
+  return shoppingRooms.find((r) => r.cardCount > 0)?.slug ?? shoppingRooms[0]?.slug;
+}
+
 /** Overwrites the whole visited-rooms array — for quick-remove's undo,
  *  which needs to restore the exact prior array rather than re-adding one
  *  room via `rememberVisitedRoom` (that would unshift it to the front and

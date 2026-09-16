@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from '../router.jsx';
 import { createRoom, fetchRoom } from '../lib/api.js';
-import { getVisitedRooms, forgetVisitedRoom } from '../lib/identity.js';
+import { getVisitedRooms, forgetVisitedRoom, roomKindOf, resolveShoppingRoom } from '../lib/identity.js';
 import { relativeTime } from '../lib/time.js';
 import BadgePrompt from '../components/BadgePrompt.jsx';
 import OfferChecker from '../components/OfferChecker.jsx';
 import NavMenu from '../components/NavMenu.jsx';
 import JoinByLink from '../components/JoinByLink.jsx';
 import NewListPrompt from '../components/NewListPrompt.jsx';
+import { BackIcon } from '../components/Icons.jsx';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,13 +18,18 @@ export default function Home() {
   const [rooms, setRooms] = useState(getVisitedRooms);
 
   // Fetches one room's live unticked count and folds it into `rooms`, used
-  // by the mount-time refresh below to fill in each list's badge.
+  // by the mount-time refresh below to fill in each list's badge. Also
+  // folds in the room's loyalty card count (already on this response,
+  // photo-free and cheap) so the loyalty link below can prefer a shopping
+  // room that actually holds cards over one that's merely more recent —
+  // kept as its own field alongside `count`, not merged into it.
   function refreshRoomCount(slug) {
     fetchRoom(slug)
       .then((room) => {
         if (room) {
           const count = room.items.filter((i) => !i.done).length;
-          setRooms((rs) => rs.map((x) => (x.slug === slug ? { ...x, count } : x)));
+          const cardCount = room.loyaltyCards.length;
+          setRooms((rs) => rs.map((x) => (x.slug === slug ? { ...x, count, cardCount } : x)));
         } else {
           forgetVisitedRoom(slug);
           setRooms((rs) => rs.filter((x) => x.slug !== slug));
@@ -164,6 +170,14 @@ export default function Home() {
     );
   }
 
+  // The loyalty link (and, below, the yellow-header-adjacent button it
+  // renders as) is a shop-context destination, not "whatever's first in
+  // the list" — an `other`-kind room has no loyalty cards page, so
+  // rooms[0] would silently misfire whenever the most recently visited
+  // list happens to be one. Undefined here (no shopping list on this
+  // device at all) is a valid answer: the button below simply won't render.
+  const loyaltySlug = resolveShoppingRoom(rooms);
+
   return (
     <div className="app-page" style={{ display: 'flex', flexDirection: 'column' }}>
       <div
@@ -192,13 +206,48 @@ export default function Home() {
             Home
           </div>
         </div>
-        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} />
+        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} roomKind={roomKindOf(rooms[0])} />
       </div>
+
+      {loyaltySlug && (
+        <Link
+          to={`/r/${loyaltySlug}/loyalty-cards`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            margin: '16px 20px 0',
+            minHeight: 56,
+            padding: '10px 18px',
+            background: '#fff',
+            border: '1px solid var(--hairline-strong)',
+            borderRadius: 'var(--radius-field)',
+            textDecoration: 'none',
+          }}
+        >
+          <span style={{ fontSize: 28, flexShrink: 0 }}>💳</span>
+          <span
+            style={{
+              flex: 1,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 800,
+              fontSize: 20,
+              lineHeight: 1.1,
+              color: 'var(--text)',
+            }}
+          >
+            Loyalty cards
+          </span>
+          <span style={{ flexShrink: 0, transform: 'rotate(180deg)', display: 'flex' }}>
+            <BackIcon color="var(--text-muted)" size={18} />
+          </span>
+        </Link>
+      )}
 
       <BadgePrompt />
 
       <div style={{ padding: '16px 20px 16px' }}>
-        <OfferChecker slug={rooms[0]?.slug} />
+        <OfferChecker />
       </div>
 
       <div style={{ flex: 1, padding: '20px 0 0', borderTop: '1px solid var(--hairline)' }}>

@@ -115,7 +115,7 @@ export default function MyLists() {
             Your lists
           </div>
         </div>
-        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} />
+        <NavMenu slug={rooms[0]?.slug} roomLabel={rooms[0]?.name} roomKind={roomKindOf(rooms[0])} />
       </div>
 
       <div style={{ flex: 1, padding: '8px 0' }}>
